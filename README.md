@@ -1,3 +1,7 @@
-# lightintodark
+This project will contain a network graph simulator based on networkx. It will be able to simulate (re)coding 
 
-This project brings some machine vision to comnets. Lets see what we find there
+
+main.py
+    - Contains Simulator class, which does the work
+    - Parameter:
+        - j - Path to JSON contains network setup 
