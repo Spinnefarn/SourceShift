@@ -13,10 +13,21 @@ import random
 def parse_args():
     """Parse commandline arguments."""
     parser = argparse.ArgumentParser()
-    parser.add_argument('-j',
+    parser.add_argument('-j', '--json',
                         dest='json',
+                        type=str,
                         help='should contain network configuration',
-                        default='network2.json')
+                        default='network.json')
+    parser.add_argument('-c', '--coding',
+                        dest='coding',
+                        type=int,
+                        help='Batch size for coded packets. Default None(without coding)',
+                        default=None)
+    parser.add_argument('-f', '--fieldsize',
+                        dest='fieldsize',
+                        type=int,
+                        help='Fieldsize used for coding.',
+                        default=2)
     return parser.parse_args()
 
 
@@ -30,7 +41,7 @@ def readconf(jsonfile):
 class Simulator:
     """Roundbased simulator to simulate traffic in meshed network."""
 
-    def __init__(self, loglevel=logging.DEBUG, jsonfile=None, coding=None):
+    def __init__(self, loglevel=logging.DEBUG, jsonfile=None, coding=None, fieldsize=2):
         self.config = {}
         self.graph = None
         self.nodes = []
@@ -38,6 +49,7 @@ class Simulator:
         self.newpackets = []
         self.batch = 0
         self.coding = coding
+        self.fieldsize = fieldsize
         import logging
         logging.basicConfig(filename='simulator.log', level=loglevel, format='%(asctime)s %(message)s', filemode='w')
         self.getready(jsonfile)
@@ -83,7 +95,8 @@ class Simulator:
                 configlist.append((src, dst, wgt))
         self.graph = nx.Graph()
         self.graph.add_weighted_edges_from(configlist)
-        self.nodes = [components.Node(name=name, coding=self.coding) for name in self.graph.nodes]
+        self.nodes = [components.Node(name=name, coding=self.coding, fieldsize=self.fieldsize)
+                      for name in self.graph.nodes]
 
     def getgraph(self):
         """Return graph."""
@@ -106,9 +119,9 @@ class Simulator:
         """Spawn new packet at src and broadcast it."""
         if self.checkdst():         # Spawn new batch if destination got all packets
             self.batch += 1
-            self.packets = [components.Packet(batch=self.batch, coding=self.coding)]
+            self.packets = [components.Packet(batch=self.batch, coding=self.coding, fieldsize=self.fieldsize)]
         if len(self.packets) == 0:  # Spawn new packet of current batch if old one gets lost
-            self.packets.append(components.Packet(batch=self.batch, coding=self.coding))
+            self.packets.append(components.Packet(batch=self.batch, coding=self.coding, fieldsize=self.fieldsize))
 
     def update(self):
         """Update one timestep."""
@@ -124,7 +137,11 @@ class Simulator:
 
     def calcetx(self):
         """Calculate ETX for every node. i/j current node, N amount of nodes, e_ij loss between,
-        z_i expected amount of transmissions"""
+        z_i expected amount of transmissions, p_ij probability j receives transmission from i,
+        p_iK probability all nodes in K receives packet from i after z_i transmissions, Z_s = min(sum(z_i)) called cost,
+        d(s) minimum cost of a path from s to t, c_sk cost of edge sk, R number of packets must be transmitted,
+        x_ik amount of innovative packets received at k sent from i(see formula 5.2),
+        q_iK is the probability that at least one node in set K receives transmission"""
         e_ik = {}
         e_ij = {}
         z_i = {}
@@ -144,7 +161,7 @@ if __name__ == '__main__':
     logging.basicConfig(
         filename='main.log', level=llevel, format='%(asctime)s %(levelname)s\t %(message)s', filemode='w')
     args = parse_args()
-    sim = Simulator(loglevel=llevel, jsonfile=args.json, coding=4)
+    sim = Simulator(loglevel=llevel, jsonfile=args.json, coding=args.coding, fieldsize=args.fieldsize)
     for i in range(4):
         done = False
         sim.spawnpacket()

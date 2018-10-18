@@ -2,19 +2,21 @@
 # coding=utf-8
 """Contains bacic network objects like Packets etc.."""
 import numpy as np
+import logging
 
 
 class Packet:
     """Representation of a single packet on the network."""
-    def __init__(self, src='S', dst='D', latency=0, batch=None, pos='S', coding=None, nodes=None):
+    def __init__(self, src='S', dst='D', latency=0, batch=None, pos='S', coding=None, fieldsize=2, nodes=None):
         self.src = src
         self.dst = dst
         self.batch = batch
         self.pos = pos
+        self.fieldsize = fieldsize
         if isinstance(coding, int):
             self.coding = [0]
             while sum(self.coding) == 0:
-                self.coding = np.random.randint(2, size=coding)
+                self.coding = np.random.randint(fieldsize, size=coding)
         else:
             self.coding = coding
         self.latency = latency
@@ -48,10 +50,11 @@ class Packet:
 
 class Node:
     """Representation of a node on the network."""
-    def __init__(self, name='S', coding=None):
+    def __init__(self, name='S', coding=None, fieldsize=2):
         self.name = name
         self.buffer = np.array([], dtype=int)
         self.coding = coding
+        self.fieldsize = fieldsize
         self.batch = 0
         self.etx = float('inf')
         self.eotx = float('inf')
@@ -74,23 +77,22 @@ class Node:
         """Return a (re)coded packet."""
         if self.name == 'S':
             coding = [0]
-            while sum(coding) == 0:
-                coding = np.random.randint(2, size=self.coding)     # Create a new random packet at source(no recoding)
-            return coding
+            while sum(coding) == 0:     # Create a new random packet at source(no recoding)
+                coding = np.random.randint(self.fieldsize, size=self.coding)
+                return coding
         recoded = []
         for i in range(len(self.buffer[0])):
-            recoded.append(sum(self.buffer[:, i]) % 2)              # Recode to get new packet
+            recoded.append(sum(self.buffer[:, i]) % self.fieldsize)              # Recode to get new packet
         return np.array(recoded)
 
     def rcvpacket(self, batch=0, coding=None):
         """Add received Packet to buffer."""
-        if self.name == 'S':        # Cant get new information if youre source
+        if self.name == 'S':        # Cant get new information if you're source
             return
-        elif batch != self.batch:   # Delete it if youre working on depricated batch
+        elif batch != self.batch or not len(self.buffer):   # Delete it if you're working on deprecated batch
             self.buffer = np.array([coding], dtype=int)
-        else:
-            if len(self.buffer):    # Just add new information if its new
-                if np.linalg.matrix_rank(self.buffer) < np.linalg.matrix_rank(np.vstack([self.buffer, coding])):
-                    self.buffer = np.vstack([self.buffer, coding])
-            else:                   # Add the first piece of information
-                self.buffer = np.array([coding], dtype=int)
+        else:    # Just add new information if its new
+            if np.linalg.matrix_rank(self.buffer) < np.linalg.matrix_rank(np.vstack([self.buffer, coding])):
+                self.buffer = np.vstack([self.buffer, coding])
+            else:
+                logging.info('Got linear dependent packet at ' + self.name + str(coding))
