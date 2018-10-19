@@ -50,6 +50,7 @@ class Simulator:
         self.batch = 0
         self.coding = coding
         self.fieldsize = fieldsize
+        self.pos = None
         import logging
         logging.basicConfig(filename='simulator.log', level=loglevel, format='%(asctime)s %(message)s', filemode='w')
         self.getready(jsonfile)
@@ -101,6 +102,26 @@ class Simulator:
         self.nodes = [components.Node(name=name, coding=self.coding, fieldsize=self.fieldsize)
                       for name in self.graph.nodes]
 
+    def drawused(self):
+        """Highlight paths used in graph drawn in getready()."""
+        edgelists = []
+        for batch in self.paths:
+            for path in self.paths[batch]:
+                edges = {}
+                nodes = list(path.keys())
+                for j in range(len(nodes) - 1):
+                    if (nodes[j], nodes[j + 1]) in edges.keys():
+                        edges[(nodes[j], nodes[j + 1])] += 1
+                    else:
+                        edges[(nodes[j], nodes[j + 1])] = 1
+                edgelists.append(edges)
+        logging.info('Paths used {}'.format(edgelists))
+        for sublist in edgelists:
+            alpha = list(sublist.values())[0]/10
+            nx.draw_networkx_edges(self.graph, pos=self.pos, edgelist=list(sublist.keys()), width=8, alpha=alpha,
+                                   edge_color='r')
+        plt.savefig('usedgraph.png')
+
     def getgraph(self):
         """Return graph."""
         return self.graph
@@ -109,12 +130,13 @@ class Simulator:
         """Do the basic stuff to get ready."""
         self.createnetwork(readconf(jsonfile))
         self.calceotx()
-        pos = nx.spring_layout(self.graph)
-        nx.draw(self.graph, pos=pos, with_labels=True, node_size=1500, node_color="skyblue", node_shape="o", alpha=0.5,
-                linewidths=4, font_size=25, font_color="grey", font_weight="bold", width=2, edge_color="grey")
+        self.pos = nx.spring_layout(self.graph).copy()
+        nx.draw(self.graph, pos=self.pos, with_labels=True, node_size=1500, node_color="skyblue", node_shape="o",
+                alpha=0.7, linewidths=4, font_size=25, font_color="grey", font_weight="bold", width=2,
+                edge_color="grey")
         labels = {key: round(value, 1) for key, value in nx.get_node_attributes(self.graph, 'EOTX').items()}
-        nx.draw_networkx_labels(self.graph, pos=pos, labels=labels)
-        nx.draw_networkx_edge_labels(self.graph, pos=pos, edge_labels=nx.get_edge_attributes(self.graph, 'weight'))
+        nx.draw_networkx_labels(self.graph, pos=self.pos, labels=labels)
+        nx.draw_networkx_edge_labels(self.graph, pos=self.pos, edge_labels=nx.get_edge_attributes(self.graph, 'weight'))
         plt.savefig('graph.png')
         logging.info('Created network from JSON successfully!')
 
@@ -124,11 +146,13 @@ class Simulator:
 
     def newbatch(self):
         """Spawn new batch if old one is done."""
-        self.batch += 1
-        self.done = False
-        self.packets = [components.Packet(batch=self.batch, coding=self.coding, fieldsize=self.fieldsize)]
         if not self.done:
             logging.warning('Old batch is not done yet')
+        self.batch += 1
+        self.done = False
+        for node in self.nodes:
+            if str(node) == 'D':
+                node.newbatch()
 
     def spawnpacket(self):
         """Spawn new packet at src and broadcast it."""
@@ -196,9 +220,10 @@ if __name__ == '__main__':
         filename='main.log', level=llevel, format='%(asctime)s %(levelname)s\t %(message)s', filemode='w')
     args = parse_args()
     sim = Simulator(loglevel=llevel, jsonfile=args.json, coding=args.coding, fieldsize=args.fieldsize)
-    for i in range(4):
+    for i in range(20):
         done = False
-        sim.spawnpacket()
         while not done:
             done = sim.update()
+        sim.newbatch()
+    sim.drawused()
     logging.info('Packet arrived at destination. {}'.format(sim.getpath()))

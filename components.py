@@ -22,7 +22,7 @@ class Packet:
             self.coding = coding
         self.latency = latency
         if nodes is None:
-            self.nodes = {}
+            self.nodes = {'S': 0}
         else:
             self.nodes = nodes
 
@@ -67,7 +67,7 @@ class Node:
         return str(self.name)
 
     def buffpacket(self, batch=0, coding=None, preveotx=0):
-        """Buffer incoming packets so they will be received at end of timeslot."""
+        """Buffer incoming packets so they will be received at end of time slot."""
         self.incbuffer.append((batch, coding, preveotx))
 
     def isdone(self):
@@ -87,6 +87,8 @@ class Node:
             while sum(coding) == 0:  # Create a new random packet at source(no recoding)
                 coding = np.random.randint(self.fieldsize, size=self.coding)
                 return coding
+        elif self.name == 'D':
+            return None
         elif self.credit > 0:
             self.credit -= 1
             recoded = []
@@ -95,6 +97,11 @@ class Node:
             return np.array(recoded)
         else:
             return None
+
+    def newbatch(self):
+        """Make destination awaiting new batch."""
+        self.batch += 1
+        self.buffer = np.array([], dtype=int)
 
     def rcvpacket(self):
         """Add received Packet to buffer. Do this at end of timeslot."""
