@@ -17,7 +17,7 @@ def parse_args():
                         dest='json',
                         type=str,
                         help='should contain network configuration',
-                        default='test.json')
+                        default='network1.json')
     parser.add_argument('-c', '--coding',
                         dest='coding',
                         type=int,
@@ -65,12 +65,12 @@ class Simulator:
                 info = packet.getall()  # Duplicate packet in receiver node
                 nodes = info[6]
                 if neighbor in nodes.keys():
-                    if isinstance(nodes[neighbor], list):
-                        nodes[neighbor].append(info[5] + 1)
+                    if isinstance(nodes[nodename, neighbor], list):
+                        nodes[nodename, neighbor].append(info[5] + 1)
                     else:
-                        nodes[neighbor] = [nodes[neighbor], info[5] + 1]
+                        nodes[nodename, neighbor] = [nodes[nodename, neighbor], info[5] + 1]
                 else:
-                    nodes[neighbor] = info[5] + 1
+                    nodes[nodename, neighbor] = info[5] + 1
                 if self.coding is None:             # Add received Packet to buffer without coding
                     self.newpackets.append(components.Packet(src=info[0], dst=info[1], batch=info[2], pos=neighbor,
                                                              coding=info[4], latency=(info[5] + 1), nodes=nodes))
@@ -104,23 +104,14 @@ class Simulator:
 
     def drawused(self):
         """Highlight paths used in graph drawn in getready()."""
-        edgelists = []
+        edgelist = []
         for batch in self.paths:
-            for path in self.paths[batch]:
-                edges = {}
-                nodes = list(path.keys())
-                for j in range(len(nodes) - 1):
-                    if (nodes[j], nodes[j + 1]) in edges.keys():
-                        edges[(nodes[j], nodes[j + 1])] += 1
-                    else:
-                        edges[(nodes[j], nodes[j + 1])] = 1
-                edgelists.append(edges)
-        logging.info('Paths used {}'.format(edgelists))
-        for sublist in edgelists:
-            alpha = list(sublist.values())[0]/10
-            nx.draw_networkx_edges(self.graph, pos=self.pos, edgelist=list(sublist.keys()), width=8, alpha=alpha,
-                                   edge_color='r')
-        plt.savefig('usedgraph.png')
+            for packet in self.paths[batch]:
+                edgelist.append(list(packet.keys()))
+        for edges in edgelist:
+            nx.draw_networkx_edges(self.graph, pos=self.pos, edgelist=edges, width=8, alpha=0.1,
+                                   edge_color='purple')
+        plt.savefig('usedgraph.pdf')
 
     def getgraph(self):
         """Return graph."""
@@ -132,12 +123,12 @@ class Simulator:
         self.calceotx()
         self.pos = nx.spring_layout(self.graph).copy()
         nx.draw(self.graph, pos=self.pos, with_labels=True, node_size=1500, node_color="skyblue", node_shape="o",
-                alpha=0.7, linewidths=4, font_size=25, font_color="grey", font_weight="bold", width=2,
+                alpha=0.7, linewidths=4, font_size=25, font_color="red", font_weight="bold", width=2,
                 edge_color="grey")
         labels = {key: round(value, 1) for key, value in nx.get_node_attributes(self.graph, 'EOTX').items()}
         nx.draw_networkx_labels(self.graph, pos=self.pos, labels=labels)
         nx.draw_networkx_edge_labels(self.graph, pos=self.pos, edge_labels=nx.get_edge_attributes(self.graph, 'weight'))
-        plt.savefig('graph.png')
+        plt.savefig('graph.pdf')
         logging.info('Created network from JSON successfully!')
 
     def getpath(self):

@@ -22,7 +22,7 @@ class Packet:
             self.coding = coding
         self.latency = latency
         if nodes is None:
-            self.nodes = {'S': 0}
+            self.nodes = {}
         else:
             self.nodes = nodes
 
@@ -82,15 +82,15 @@ class Node:
 
     def getcoded(self):
         """Return a (re)coded packet."""
-        if self.name == 'S':
-            coding = [0]
-            while sum(coding) == 0:  # Create a new random packet at source(no recoding)
-                coding = np.random.randint(self.fieldsize, size=self.coding)
-                return coding
-        elif self.name == 'D':
+        if self.name == 'D':
             return None
         elif self.credit > 0:
             self.credit -= 1
+            if self.complete or self.isdone():
+                coding = [0]
+                while sum(coding) == 0:     # Use random coding instead of recoding if rank is full
+                    coding = np.random.randint(self.fieldsize, size=self.coding)
+                return coding
             recoded = []
             for i in range(len(self.buffer[0])):
                 recoded.append(sum(self.buffer[:, i]) % self.fieldsize)  # Recode to get new packet
