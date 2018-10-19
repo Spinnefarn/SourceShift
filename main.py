@@ -39,7 +39,7 @@ def readconf(jsonfile):
 
 
 class Simulator:
-    """Roundbased simulator to simulate traffic in meshed network."""
+    """Round based simulator to simulate traffic in meshed network."""
 
     def __init__(self, loglevel=logging.DEBUG, jsonfile=None, coding=None, fieldsize=2):
         self.config = {}
@@ -53,16 +53,17 @@ class Simulator:
         import logging
         logging.basicConfig(filename='simulator.log', level=loglevel, format='%(asctime)s %(message)s', filemode='w')
         self.getready(jsonfile)
+        self.done = False
+        self.paths = {}
 
     def broadcast(self, packet):
         """Broadcast given packet to all neighbors."""
         nodename = packet.getpos()
         for neighbor in list(self.graph.neighbors(nodename)):
-            if self.graph.edges[nodename, neighbor]['weight'] > random.random():    # roll dice
+            if self.graph.edges[nodename, neighbor]['weight'] > random.random() and neighbor != 'S':    # roll dice
                 info = packet.getall()  # Duplicate packet in receiver node
                 nodes = info[6]
                 if neighbor in nodes.keys():
-                    # logging.warning('Loop detected!')
                     if isinstance(nodes[neighbor], list):
                         nodes[neighbor].append(info[5] + 1)
                     else:
@@ -75,17 +76,19 @@ class Simulator:
                 else:
                     for name in self.nodes:         # Add received Packet to buffer with coding
                         if str(name) == neighbor:
-                            name.rcvpacket(batch=info[2], coding=info[4])
-                            self.newpackets.append(
-                                components.Packet(src=info[0], dst=info[1], batch=info[2], pos=neighbor,
-                                                  coding=name.getcoded(), latency=(info[5] + 1), nodes=nodes))
+                            name.buffpacket(batch=info[2], coding=info[4], preveotx=self.graph.nodes[nodename]['EOTX'])
+                            newpacket = name.getcoded()
+                            if newpacket is not None:
+                                self.newpackets.append(
+                                    components.Packet(src=info[0], dst=info[1], batch=info[2], pos=neighbor,
+                                                      coding=newpacket, latency=(info[5] + 1), nodes=nodes))
+                            if str(name) == 'D':    # Save path the packet has traveled
+                                if info[2] in self.paths:
+                                    self.paths[info[2]].append(nodes)
+                                else:
+                                    self.paths[info[2]] = [nodes]
+                            break
         packet.update()
-
-    def checkdst(self):
-        """Check if destination received all information."""
-        for node in self.nodes:
-            if str(node) == 'D':
-                return node.done()
 
     def createnetwork(self, config):
         """Create network using networkx library based on configuration given as dict."""
@@ -106,33 +109,49 @@ class Simulator:
         """Do the basic stuff to get ready."""
         self.createnetwork(readconf(jsonfile))
         self.calceotx()
-        nx.draw_networkx(self.graph)
+        pos = nx.spring_layout(self.graph)
+        nx.draw(self.graph, pos=pos, with_labels=True, node_size=1500, node_color="skyblue", node_shape="o", alpha=0.5,
+                linewidths=4, font_size=25, font_color="grey", font_weight="bold", width=2, edge_color="grey")
+        labels = {key: round(value, 1) for key, value in nx.get_node_attributes(self.graph, 'EOTX').items()}
+        nx.draw_networkx_labels(self.graph, pos=pos, labels=labels)
+        nx.draw_networkx_edge_labels(self.graph, pos=pos, edge_labels=nx.get_edge_attributes(self.graph, 'weight'))
         plt.savefig('graph.png')
         logging.info('Created network from JSON successfully!')
 
     def getpath(self):
         """Get path of the packet which arrived successfully."""
-        for packet in self.packets:
-            if packet.getpos() == 'D':
-                return packet.getpath()
+        return self.paths
+
+    def newbatch(self):
+        """Spawn new batch if old one is done."""
+        self.batch += 1
+        self.done = False
+        self.packets = [components.Packet(batch=self.batch, coding=self.coding, fieldsize=self.fieldsize)]
+        if not self.done:
+            logging.warning('Old batch is not done yet')
 
     def spawnpacket(self):
         """Spawn new packet at src and broadcast it."""
-        if self.checkdst():         # Spawn new batch if destination got all previous packets
-            self.batch += 1
-            self.packets = [components.Packet(batch=self.batch, coding=self.coding, fieldsize=self.fieldsize)]
         self.packets.append(components.Packet(batch=self.batch, coding=self.coding, fieldsize=self.fieldsize))
 
     def update(self):
         """Update one timestep."""
-        self.spawnpacket()
-        for node in self.nodes:
-            if str(node) != 'D':        # Destination should not send any packet
-                for packet in self.packets:
-                    if node.getname() == packet.getpos():   # Just send the packet if you have it
-                        self.broadcast(packet)
-        self.packets = self.newpackets.copy()       # Replace old packets by new ones
-        self.newpackets = []                        # Clear list for next run
+        if not self.done:
+            self.spawnpacket()
+            for node in self.nodes:
+                if str(node) != 'D':        # Destination should not send any packet
+                    for packet in self.packets:
+                        if node.getname() == packet.getpos():   # Just send the packet if you have it
+                            self.broadcast(packet)
+                else:
+                    self.done = node.isdone()
+            self.packets = self.newpackets.copy()       # Replace old packets by new ones
+            self.newpackets = []                        # Clear list for next run
+            for node in self.nodes:
+                node.rcvpacket()
+            return False
+        else:
+            return True
 
     def calceotx(self):
         """Calculate ETX for every node. i/j current node,
@@ -151,15 +170,15 @@ class Simulator:
         K = 32 = Batchsize"""
 
         eotx_t = {str(node): 1 for node in self.nodes}
-        eotx_p = {str(node): 1 for node in self.nodes}
+        eotx_p = eotx_t.copy()
         q = {}
-        for node in self.graph.nodes:
-            self.graph.nodes[node]['EOTX'] = float('inf')
-            q[node] = float('inf')
-        q['D'] = 0.
+        for node in self.nodes:
+            self.graph.nodes[str(node)]['EOTX'] = float('inf')
+            q[str(node)] = node
+        q['D'].seteotx(0.)
         self.graph.nodes['D']['EOTX'] = 0.
         while q:
-            node, value = min(q.items(), key=lambda x: x[1])    # Has to be calculated from destination to source
+            node, value = min(q.items(), key=lambda x: x[1].geteotx())    # Calculate from destination to source
             del q[node]
             for neighbor in self.graph.neighbors(node):
                 if neighbor not in q:
@@ -168,7 +187,7 @@ class Simulator:
                     self.graph.edges[node, neighbor]['weight'] * eotx_p[neighbor] * self.graph.nodes[node]['EOTX']
                 eotx_p[neighbor] *= (1 - self.graph.edges[node, neighbor]['weight'])
                 self.graph.nodes[neighbor]['EOTX'] = eotx_t[neighbor] / (1 - eotx_p[neighbor])
-                q[neighbor] = self.graph.nodes[neighbor]['EOTX']
+                q[neighbor].seteotx(self.graph.nodes[neighbor]['EOTX'])
 
 
 if __name__ == '__main__':
@@ -181,6 +200,5 @@ if __name__ == '__main__':
         done = False
         sim.spawnpacket()
         while not done:
-            sim.update()
-            done = sim.checkdst()
-        logging.info('Packet arrived at destination. {}'.format(sim.getpath()))
+            done = sim.update()
+    logging.info('Packet arrived at destination. {}'.format(sim.getpath()))
