@@ -55,41 +55,22 @@ class Simulator:
         logging.basicConfig(filename='simulator.log', level=loglevel, format='%(asctime)s %(message)s', filemode='w')
         self.getready(jsonfile)
         self.done = False
-        self.paths = {}
+        self.path = {}
+        self.timestamp = 0
 
-    def broadcast(self, packet):
+    def broadcast(self, node):
         """Broadcast given packet to all neighbors."""
-        nodename = packet.getpos()
-        for neighbor in list(self.graph.neighbors(nodename)):
-            if self.graph.edges[nodename, neighbor]['weight'] > random.random() and neighbor != 'S':    # roll dice
-                info = packet.getall()  # Duplicate packet in receiver node
-                nodes = info[6]
-                if neighbor in nodes.keys():
-                    if isinstance(nodes[nodename, neighbor], list):
-                        nodes[nodename, neighbor].append(info[5] + 1)
-                    else:
-                        nodes[nodename, neighbor] = [nodes[nodename, neighbor], info[5] + 1]
-                else:
-                    nodes[nodename, neighbor] = info[5] + 1
-                if self.coding is None:             # Add received Packet to buffer without coding
-                    self.newpackets.append(components.Packet(src=info[0], dst=info[1], batch=info[2], pos=neighbor,
-                                                             coding=info[4], latency=(info[5] + 1), nodes=nodes))
-                else:
-                    for name in self.nodes:         # Add received Packet to buffer with coding
-                        if str(name) == neighbor:
-                            name.buffpacket(batch=info[2], coding=info[4], preveotx=self.graph.nodes[nodename]['EOTX'])
-                            newpacket = name.getcoded()
-                            if newpacket is not None:
-                                self.newpackets.append(
-                                    components.Packet(src=info[0], dst=info[1], batch=info[2], pos=neighbor,
-                                                      coding=newpacket, latency=(info[5] + 1), nodes=nodes))
-                            if str(name) == 'D':    # Save path the packet has traveled
-                                if info[2] in self.paths:
-                                    self.paths[info[2]].append(nodes)
-                                else:
-                                    self.paths[info[2]] = [nodes]
-                            break
-        packet.update()
+        for neighbor in list(self.graph.neighbors(str(node))):
+            if self.graph.edges[str(node), neighbor]['weight'] > random.random() and neighbor != 'S':    # roll dice
+                for name in self.nodes:         # Add received Packet to buffer with coding
+                    if str(name) == neighbor:
+                        name.buffpacket(batch=node.getbatch(), coding=node.getcoded(), preveotx=node.geteotx())
+                        break
+                if node.getbatch() not in self.path:
+                    self.path[node.getbatch()] = {}
+                if (str(node), neighbor) not in self.path[node.getbatch()]:
+                    self.path[node.getbatch()][(str(node), neighbor)] = []
+                self.path[node.getbatch()][(str(node), neighbor)].append(self.timestamp)
 
     def createnetwork(self, config):
         """Create network using networkx library based on configuration given as dict."""
@@ -105,13 +86,33 @@ class Simulator:
     def drawused(self):
         """Highlight paths used in graph drawn in getready()."""
         edgelist = []
-        for batch in self.paths:
-            for packet in self.paths[batch]:
-                edgelist.append(list(packet.keys()))
-        for edges in edgelist:
-            nx.draw_networkx_edges(self.graph, pos=self.pos, edgelist=edges, width=8, alpha=0.1,
-                                   edge_color='purple')
+        for batch in self.path:
+            edgelist.extend(list(self.path[batch].keys()))
+            for edge in self.path[batch].keys():
+                edgelist.extend([edge for _ in self.path[batch][edge]])
+        nx.draw_networkx_edges(self.graph, pos=self.pos, edgelist=edgelist, width=8, alpha=0.1,
+                               edge_color='purple')
         plt.savefig('usedgraph.pdf')
+        plt.close()
+
+    def drawtrash(self):
+        """Draw linear dependent packets over time and nodes"""
+        maxval = []
+        plt.figure(figsize=(10, 5))
+        for node in self.nodes:
+            trash, amount = node.gettrash()
+            plt.scatter(trash, amount, marker='x', label=str(node), alpha=0.5)
+            if len(amount):
+                maxval.append(max(amount))
+        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        plt.ylabel('Amount of linear depended packets')
+        plt.xlabel('Timestamp')
+        plt.ylim(ymin=0)
+        plt.yticks(range(1, max(maxval) + 1, 1))
+        plt.title('Amount of linear depended packets for each node.')
+        plt.tight_layout()
+        plt.savefig('lineardepended.pdf')
+        plt.close()
 
     def getgraph(self):
         """Return graph."""
@@ -133,7 +134,7 @@ class Simulator:
 
     def getpath(self):
         """Get path of the packet which arrived successfully."""
-        return self.paths
+        return self.path
 
     def newbatch(self):
         """Spawn new batch if old one is done."""
@@ -145,25 +146,20 @@ class Simulator:
             if str(node) == 'D':
                 node.newbatch()
 
-    def spawnpacket(self):
-        """Spawn new packet at src and broadcast it."""
-        self.packets.append(components.Packet(batch=self.batch, coding=self.coding, fieldsize=self.fieldsize))
-
     def update(self):
         """Update one timestep."""
         if not self.done:
-            self.spawnpacket()
+            for node in self.nodes:         # Destination should not send any packet
+                if str(node) == 'S':
+                    self.broadcast(node)
+                elif str(node) != 'D' and node.getcredit() > 0:
+                    self.broadcast(node)
+                    node.reducecredit()
             for node in self.nodes:
-                if str(node) != 'D':        # Destination should not send any packet
-                    for packet in self.packets:
-                        if node.getname() == packet.getpos():   # Just send the packet if you have it
-                            self.broadcast(packet)
-                else:
+                node.rcvpacket(self.timestamp)
+                if str(node) == 'D':
                     self.done = node.isdone()
-            self.packets = self.newpackets.copy()       # Replace old packets by new ones
-            self.newpackets = []                        # Clear list for next run
-            for node in self.nodes:
-                node.rcvpacket()
+            self.timestamp += 1
             return False
         else:
             return True
@@ -217,4 +213,5 @@ if __name__ == '__main__':
             done = sim.update()
         sim.newbatch()
     sim.drawused()
+    sim.drawtrash()
     logging.info('Packet arrived at destination. {}'.format(sim.getpath()))

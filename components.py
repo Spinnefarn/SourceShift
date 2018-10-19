@@ -5,50 +5,6 @@ import numpy as np
 import logging
 
 
-class Packet:
-    """Representation of a single packet on the network."""
-
-    def __init__(self, src='S', dst='D', latency=0, batch=None, pos='S', coding=None, fieldsize=2, nodes=None):
-        self.src = src
-        self.dst = dst
-        self.batch = batch
-        self.pos = pos
-        self.fieldsize = fieldsize
-        if isinstance(coding, int):
-            self.coding = [0]
-            while sum(self.coding) == 0:
-                self.coding = np.random.randint(fieldsize, size=coding)
-        else:
-            self.coding = coding
-        self.latency = latency
-        if nodes is None:
-            self.nodes = {}
-        else:
-            self.nodes = nodes
-
-    def __str__(self):
-        return str(self.pos)
-
-    def update(self, node=None):
-        """Add current location to list of visited locations."""
-        self.latency += 1
-        if node is not None:
-            self.nodes[node] = self.latency
-            self.pos = node
-
-    def getpos(self):
-        """Return current position."""
-        return self.pos
-
-    def getpath(self):
-        """Return route packet has traveled."""
-        return self.nodes.copy()
-
-    def getall(self):
-        """Return all informaion."""
-        return self.src, self.dst, self.batch, self.pos, self.coding, self.latency, self.nodes.copy()
-
-
 class Node:
     """Representation of a node on the network."""
 
@@ -62,6 +18,7 @@ class Node:
         self.eotx = float('inf')
         self.credit = 0
         self.complete = (name == 'S')
+        self.trash = []
 
     def __str__(self):
         return str(self.name)
@@ -72,20 +29,22 @@ class Node:
 
     def isdone(self):
         """Return True if able to decode."""
-        if self.name != 'S' and not self.complete:
-            self.complete = self.coding == np.linalg.matrix_rank(self.buffer)
         return self.complete
 
-    def getname(self):
-        """Return name of the node."""
-        return self.name
+    def getbatch(self):
+        """Return current batch."""
+        return self.batch
 
     def getcoded(self):
         """Return a (re)coded packet."""
-        if self.name == 'D':
+        if self.name == 'D':            # Make sure destination will never send a packet
             return None
-        elif self.credit > 0:
-            self.credit -= 1
+        elif self.name == 'S':
+            coding = [0]
+            while sum(coding) == 0:  # Use random coding instead of recoding if rank is full
+                coding = np.random.randint(self.fieldsize, size=self.coding)
+            return coding
+        elif self.credit > 0:           # Check tx credit
             if self.complete or self.isdone():
                 coding = [0]
                 while sum(coding) == 0:     # Use random coding instead of recoding if rank is full
@@ -98,12 +57,28 @@ class Node:
         else:
             return None
 
+    def getcredit(self):
+        """Tell the amount of tx credit."""
+        return self.credit
+
+    def geteotx(self):
+        """Get eotx."""
+        return self.eotx
+
+    def getname(self):
+        """Return name of the node."""
+        return self.name
+
+    def gettrash(self):
+        """Return trash."""
+        return np.unique(self.trash, return_counts=True)
+
     def newbatch(self):
         """Make destination awaiting new batch."""
         self.batch += 1
         self.buffer = np.array([], dtype=int)
 
-    def rcvpacket(self):
+    def rcvpacket(self, timestamp):
         """Add received Packet to buffer. Do this at end of timeslot."""
         for batch, coding, preveotx in self.incbuffer:
             if self.name == 'S':  # Cant get new information if you're source
@@ -116,16 +91,20 @@ class Node:
                 else:
                     if self.complete or self.isdone():
                         logging.debug('Got linear dependent packet at {}, decoder full'.format(self.name))
+                        self.trash.append(timestamp)
                     else:
                         logging.debug('Got linear dependent packet at {} coding {}'.format(self.name, str(coding)))
+                        self.trash.append(timestamp)
             if preveotx > self.eotx:
                 self.credit += 1
         self.incbuffer = []
+        if self.name != 'S' and not self.complete:
+            self.complete = self.coding == np.linalg.matrix_rank(self.buffer)
+
+    def reducecredit(self):
+        """Reduce tx credit."""
+        self.credit -= 1
 
     def seteotx(self, eotx=float('inf')):
         """Set eotx to given value."""
         self.eotx = eotx
-
-    def geteotx(self):
-        """Get eotx."""
-        return self.eotx
