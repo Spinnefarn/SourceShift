@@ -17,12 +17,12 @@ def parse_args():
                         dest='json',
                         type=str,
                         help='should contain network configuration',
-                        default='network.json')
+                        default='test.json')
     parser.add_argument('-c', '--coding',
                         dest='coding',
                         type=int,
                         help='Batch size for coded packets. Default None(without coding)',
-                        default=None)
+                        default=8)
     parser.add_argument('-f', '--fieldsize',
                         dest='fieldsize',
                         type=int,
@@ -62,7 +62,7 @@ class Simulator:
                 info = packet.getall()  # Duplicate packet in receiver node
                 nodes = info[6]
                 if neighbor in nodes.keys():
-                    logging.warning('Loop detected!')
+                    # logging.warning('Loop detected!')
                     if isinstance(nodes[neighbor], list):
                         nodes[neighbor].append(info[5] + 1)
                     else:
@@ -102,9 +102,10 @@ class Simulator:
         """Return graph."""
         return self.graph
 
-    def getready(self, json):
+    def getready(self, jsonfile):
         """Do the basic stuff to get ready."""
-        self.createnetwork(readconf(json))
+        self.createnetwork(readconf(jsonfile))
+        self.calceotx()
         nx.draw_networkx(self.graph)
         plt.savefig('graph.png')
         logging.info('Created network from JSON successfully!')
@@ -117,16 +118,14 @@ class Simulator:
 
     def spawnpacket(self):
         """Spawn new packet at src and broadcast it."""
-        if self.checkdst():         # Spawn new batch if destination got all packets
+        if self.checkdst():         # Spawn new batch if destination got all previous packets
             self.batch += 1
             self.packets = [components.Packet(batch=self.batch, coding=self.coding, fieldsize=self.fieldsize)]
-        if len(self.packets) == 0:  # Spawn new packet of current batch if old one gets lost
-            self.packets.append(components.Packet(batch=self.batch, coding=self.coding, fieldsize=self.fieldsize))
+        self.packets.append(components.Packet(batch=self.batch, coding=self.coding, fieldsize=self.fieldsize))
 
     def update(self):
         """Update one timestep."""
-        if len(self.packets) == 0:      # Spawn new packet if there is none at the network
-            self.spawnpacket()
+        self.spawnpacket()
         for node in self.nodes:
             if str(node) != 'D':        # Destination should not send any packet
                 for packet in self.packets:
@@ -135,25 +134,41 @@ class Simulator:
         self.packets = self.newpackets.copy()       # Replace old packets by new ones
         self.newpackets = []                        # Clear list for next run
 
-    def calcetx(self):
-        """Calculate ETX for every node. i/j current node, N amount of nodes, e_ij loss between,
-        z_i expected amount of transmissions, p_ij probability j receives transmission from i,
-        p_iK probability all nodes in K receives packet from i after z_i transmissions, Z_s = min(sum(z_i)) called cost,
-        d(s) minimum cost of a path from s to t, c_sk cost of edge sk, R number of packets must be transmitted,
+    def calceotx(self):
+        """Calculate ETX for every node. i/j current node,
+        N amount of nodes,
+        e_ij loss between i and j,
+        z_i expected amount of transmissions,
+        p_ij probability j receives transmission from i (1-e_ij) edge weight,
+        p_iK probability all nodes in K receives packet from i after z_i transmissions,
+        Z_s = min(sum(z_i)) called cost,
+        d(s) minimum cost of a path from s to t,
+        c_sk cost of edge sk,
+        R number of packets must be transmitted,
         x_ik amount of innovative packets received at k sent from i(see formula 5.2),
-        q_iK is the probability that at least one node in set K receives transmission"""
-        e_ik = {}
-        e_ij = {}
-        z_i = {}
+        q_iK is the probability that at least one node in set K receives transmission
+        L_i load of each node sum_k(x_ik)
+        K = 32 = Batchsize"""
+
+        eotx_t = {str(node): 1 for node in self.nodes}
+        eotx_p = {str(node): 1 for node in self.nodes}
+        q = {}
         for node in self.graph.nodes:
-            path_ik = nx.dijkstra_path(self.graph, node, 'D')
-            e_ik[node] = 1
-            for i in range(len(path_ik) - 1):
-                e_ik[node] *= self.graph.edges[path_ik[i], path_ik[i + 1]]['weight']
-            path_ij = nx.dijkstra_path(self.graph, 'S', node)
-            e_ij[node] = 1
-            for i in range(len(path_ij) - 1):
-                e_ij[node] *= self.graph.edges[path_ij[i], path_ij[i + 1]]['weight']
+            self.graph.nodes[node]['EOTX'] = float('inf')
+            q[node] = float('inf')
+        q['D'] = 0.
+        self.graph.nodes['D']['EOTX'] = 0.
+        while q:
+            node, value = min(q.items(), key=lambda x: x[1])    # Has to be calculated from destination to source
+            del q[node]
+            for neighbor in self.graph.neighbors(node):
+                if neighbor not in q:
+                    continue
+                eotx_t[neighbor] += \
+                    self.graph.edges[node, neighbor]['weight'] * eotx_p[neighbor] * self.graph.nodes[node]['EOTX']
+                eotx_p[neighbor] *= (1 - self.graph.edges[node, neighbor]['weight'])
+                self.graph.nodes[neighbor]['EOTX'] = eotx_t[neighbor] / (1 - eotx_p[neighbor])
+                q[neighbor] = self.graph.nodes[neighbor]['EOTX']
 
 
 if __name__ == '__main__':
@@ -169,4 +184,3 @@ if __name__ == '__main__':
             sim.update()
             done = sim.checkdst()
         logging.info('Packet arrived at destination. {}'.format(sim.getpath()))
-
