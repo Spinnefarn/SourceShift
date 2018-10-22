@@ -28,6 +28,11 @@ def parse_args():
                         type=int,
                         help='Fieldsize used for coding.',
                         default=2)
+    parser.add_argument('-sa', '--sendamount',
+                        dest='sendam',
+                        type=int,
+                        help='Amount of nodes allowed to send per timeslot.',
+                        default=0)
     return parser.parse_args()
 
 
@@ -41,13 +46,14 @@ def readconf(jsonfile):
 class Simulator:
     """Round based simulator to simulate traffic in meshed network."""
 
-    def __init__(self, loglevel=logging.DEBUG, jsonfile=None, coding=None, fieldsize=2):
+    def __init__(self, loglevel=logging.DEBUG, jsonfile=None, coding=None, fieldsize=2, sendall=0):
         self.config = {}
         self.graph = None
         self.nodes = []
         self.packets = []
         self.newpackets = []
         self.batch = 0
+        self.sendam = sendall
         self.coding = coding
         self.fieldsize = fieldsize
         self.pos = None
@@ -108,6 +114,7 @@ class Simulator:
         plt.ylabel('Amount of linear depended packets')
         plt.xlabel('Timestamp')
         plt.ylim(ymin=0)
+        plt.xlim(xmin=0)
         plt.yticks(range(1, max(maxval) + 1, 1))
         plt.title('Amount of linear depended packets for each node.')
         plt.tight_layout()
@@ -146,21 +153,42 @@ class Simulator:
             if str(node) == 'D':
                 node.newbatch()
 
+    def sendall(self):
+        """All nodes send at same time."""
+        for node in self.nodes:
+            if str(node) == 'S':
+                self.broadcast(node)
+            elif str(node) != 'D' and node.getcredit() > 0:
+                self.broadcast(node)
+                node.reducecredit()
+
+    def sendsel(self):
+        """Just the selected amount of nodes send at one timeslot."""
+        goodnodes = [node for node in self.nodes if (node.getcredit() > 0) or (str(node) == 'S')]
+        maxsend = self.sendam if len(goodnodes) > self.sendam else len(goodnodes)
+        for _ in range(maxsend):
+            k = random.randint(0, len(goodnodes) - 1)
+            if str(goodnodes[k]) == 'S':
+                self.broadcast(goodnodes[k])
+            elif str(goodnodes[k]) != 'D':
+                self.broadcast(goodnodes[k])
+                goodnodes[k].reducecredit()
+            del goodnodes[k]
+
     def update(self):
         """Update one timestep."""
         if not self.done:
-            for node in self.nodes:         # Destination should not send any packet
-                if str(node) == 'S':
-                    self.broadcast(node)
-                elif str(node) != 'D' and node.getcredit() > 0:
-                    self.broadcast(node)
-                    node.reducecredit()
+            if not self.sendam:
+                self.sendsel()
+            else:
+                self.sendall()
             for node in self.nodes:
-                node.rcvpacket(self.timestamp)
+                if str(node) != 'S':
+                    node.rcvpacket(self.timestamp)
                 if str(node) == 'D':
                     self.done = node.isdone()
             self.timestamp += 1
-            return False
+            return self.done
         else:
             return True
 
@@ -206,7 +234,8 @@ if __name__ == '__main__':
     logging.basicConfig(
         filename='main.log', level=llevel, format='%(asctime)s %(levelname)s\t %(message)s', filemode='w')
     args = parse_args()
-    sim = Simulator(loglevel=llevel, jsonfile=args.json, coding=args.coding, fieldsize=args.fieldsize)
+    sim = Simulator(loglevel=llevel, jsonfile=args.json, coding=args.coding, fieldsize=args.fieldsize,
+                    sendall=args.sendam)
     for i in range(20):
         done = False
         while not done:
