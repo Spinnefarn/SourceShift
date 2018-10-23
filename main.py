@@ -17,7 +17,7 @@ def parse_args():
                         dest='json',
                         type=str,
                         help='should contain network configuration',
-                        default='network1.json')
+                        default='network.json')
     parser.add_argument('-c', '--coding',
                         dest='coding',
                         type=int,
@@ -46,12 +46,13 @@ def readconf(jsonfile):
 class Simulator:
     """Round based simulator to simulate traffic in meshed network."""
 
-    def __init__(self, loglevel=logging.DEBUG, jsonfile=None, coding=None, fieldsize=2, sendall=0):
+    def __init__(self, loglevel=logging.INFO, jsonfile=None, coding=None, fieldsize=2, sendall=0):
         self.config = {}
         self.graph = None
         self.nodes = []
         self.packets = []
         self.newpackets = []
+        self.z = {}
         self.batch = 0
         self.sendam = sendall
         self.coding = coding
@@ -78,6 +79,84 @@ class Simulator:
                     self.path[node.getbatch()][(str(node), neighbor)] = []
                 self.path[node.getbatch()][(str(node), neighbor)].append(self.timestamp)
 
+    def calceotx(self):
+        """Calculate ETX for every node. i/j current node,
+        N amount of nodes,
+        e_ij loss between i and j,
+        z_i expected amount of transmissions,
+        p_ij probability j receives transmission from i (1-e_ij) edge weight,
+        p_iK probability all nodes in K receives packet from i after z_i transmissions,
+        Z_s = min(sum(z_i)) called cost,
+        d(s) minimum cost of a path from s to t,
+        c_sk cost of edge sk,
+        R number of packets must be transmitted,
+        x_ik amount of innovative packets received at k sent from i(see formula 5.2),
+        q_iK is the probability that at least one node in set K receives transmission
+        L_i load of each node sum_k(x_ik)
+        K = 32 = Batchsize"""
+
+        eotx_t = {str(node): 1 for node in self.nodes}
+        eotx_p = eotx_t.copy()
+        q = {}
+        for node in self.nodes:
+            self.graph.nodes[str(node)]['EOTX'] = float('inf')
+            q[str(node)] = node
+        q['D'].seteotx(0.)
+        self.graph.nodes['D']['EOTX'] = 0.
+        while q:
+            node, value = min(q.items(), key=lambda x: x[1].geteotx())    # Calculate from destination to source
+            del q[node]
+            for neighbor in self.graph.neighbors(node):
+                if neighbor not in q:
+                    continue
+                eotx_t[neighbor] += \
+                    self.graph.edges[node, neighbor]['weight'] * eotx_p[neighbor] * self.graph.nodes[node]['EOTX']
+                eotx_p[neighbor] *= (1 - self.graph.edges[node, neighbor]['weight'])
+                self.graph.nodes[neighbor]['EOTX'] = eotx_t[neighbor] / (1 - eotx_p[neighbor])
+                q[neighbor].seteotx(self.graph.nodes[neighbor]['EOTX'])
+
+    def calc_tx_credit(self):
+        """Calculate the amount of tx credit the receiver gets."""
+        l_n = {node: self.graph.nodes[node]['EOTX'] for node in self.graph.nodes}
+        l_n = sorted(l_n.items(), key=lambda kv: kv[1])
+        l = {key[0]: 0 for key in l_n if key[0] != 'D'}
+        l['S'] = 1
+        for idx, node in enumerate(list(l.keys())[::-1]):
+            self.z[node] = l[node] / (1 - self.calce(node))
+            p = 1
+            for idx2, j in enumerate(list(l.keys())[:(len(l.keys()) - idx - 1)]):
+                try:
+                    if idx2 == 0:
+                        p *= (1 - self.graph.edges[node, 'D']['weight'])
+                    else:
+                        x = list(l.keys())[idx2 - 1]
+                        p *= (1 - self.graph.edges[node, list(l.keys())[idx2 - 1]]['weight'])
+                except KeyError:
+                    pass
+                try:
+                    l[j] += self.z[node] * p * self.graph.edges[node, j]['weight']
+                except KeyError:
+                    pass
+        for node in self.nodes:
+            if str(node) == 'D':
+                continue
+            value = 0
+            for neighbor in self.graph.neighbors(str(node)):
+                if self.graph.nodes[neighbor]['EOTX'] > node.geteotx():
+                    value += self.z[neighbor] * self.graph.edges[str(node), neighbor]['weight']
+            try:
+                node.setcredit(self.z[str(node)]/value)
+            except ZeroDivisionError:
+                pass
+
+    def calce(self, node):
+        """Calc the probability a packet is not received by any destination."""
+        e = 1
+        for neighbor in self.graph.neighbors(node):
+            if self.graph.nodes[neighbor]['EOTX'] < self.graph.nodes[node]['EOTX']:
+                e *= (1 - self.graph.edges[node, neighbor]['weight'])
+        return e
+
     def createnetwork(self, config):
         """Create network using networkx library based on configuration given as dict."""
         configlist = []
@@ -89,14 +168,26 @@ class Simulator:
         self.nodes = [components.Node(name=name, coding=self.coding, fieldsize=self.fieldsize)
                       for name in self.graph.nodes]
 
+    def drawunused(self):
+        """Draw initial graph."""
+        plt.figure(figsize=(10, 10))
+        nx.draw(self.graph, pos=self.pos, with_labels=True, node_size=1500, node_color="skyblue", node_shape="o",
+                alpha=0.7, linewidths=4, font_size=25, font_color="red", font_weight="bold", width=2,
+                edge_color="grey")
+        labels = {key: round(value, 1) for key, value in nx.get_node_attributes(self.graph, 'EOTX').items()}
+        nx.draw_networkx_labels(self.graph, pos=self.pos, labels=labels)
+        nx.draw_networkx_edge_labels(self.graph, pos=self.pos, edge_labels=nx.get_edge_attributes(self.graph, 'weight'))
+        plt.savefig('graph.pdf')
+
     def drawused(self):
         """Highlight paths used in graph drawn in getready()."""
+        self.drawunused()
         edgelist = []
         for batch in self.path:
             edgelist.extend(list(self.path[batch].keys()))
             for edge in self.path[batch].keys():
                 edgelist.extend([edge for _ in self.path[batch][edge]])
-        nx.draw_networkx_edges(self.graph, pos=self.pos, edgelist=edgelist, width=8, alpha=0.1,
+        nx.draw_networkx_edges(self.graph, pos=self.pos, edgelist=edgelist, width=8, alpha=0.01,
                                edge_color='purple')
         plt.savefig('usedgraph.pdf')
         plt.close()
@@ -105,8 +196,10 @@ class Simulator:
         """Draw linear dependent packets over time and nodes"""
         maxval = []
         plt.figure(figsize=(10, 5))
+        trashdict = {}
         for node in self.nodes:
             trash, amount = node.gettrash()
+            trashdict[str(node)] = (trash, amount)
             plt.scatter(trash, amount, marker='x', label=str(node), alpha=0.5)
             if len(amount):
                 maxval.append(max(amount))
@@ -129,14 +222,10 @@ class Simulator:
         """Do the basic stuff to get ready."""
         self.createnetwork(readconf(jsonfile))
         self.calceotx()
+        self.calc_tx_credit()
         self.pos = nx.spring_layout(self.graph).copy()
-        nx.draw(self.graph, pos=self.pos, with_labels=True, node_size=1500, node_color="skyblue", node_shape="o",
-                alpha=0.7, linewidths=4, font_size=25, font_color="red", font_weight="bold", width=2,
-                edge_color="grey")
-        labels = {key: round(value, 1) for key, value in nx.get_node_attributes(self.graph, 'EOTX').items()}
-        nx.draw_networkx_labels(self.graph, pos=self.pos, labels=labels)
-        nx.draw_networkx_edge_labels(self.graph, pos=self.pos, edge_labels=nx.get_edge_attributes(self.graph, 'weight'))
-        plt.savefig('graph.pdf')
+        self.drawunused()
+        plt.close()
         logging.info('Created network from JSON successfully!')
 
     def getpath(self):
@@ -178,7 +267,7 @@ class Simulator:
     def update(self):
         """Update one timestep."""
         if not self.done:
-            if not self.sendam:
+            if self.sendam:
                 self.sendsel()
             else:
                 self.sendall()
@@ -192,45 +281,9 @@ class Simulator:
         else:
             return True
 
-    def calceotx(self):
-        """Calculate ETX for every node. i/j current node,
-        N amount of nodes,
-        e_ij loss between i and j,
-        z_i expected amount of transmissions,
-        p_ij probability j receives transmission from i (1-e_ij) edge weight,
-        p_iK probability all nodes in K receives packet from i after z_i transmissions,
-        Z_s = min(sum(z_i)) called cost,
-        d(s) minimum cost of a path from s to t,
-        c_sk cost of edge sk,
-        R number of packets must be transmitted,
-        x_ik amount of innovative packets received at k sent from i(see formula 5.2),
-        q_iK is the probability that at least one node in set K receives transmission
-        L_i load of each node sum_k(x_ik)
-        K = 32 = Batchsize"""
-
-        eotx_t = {str(node): 1 for node in self.nodes}
-        eotx_p = eotx_t.copy()
-        q = {}
-        for node in self.nodes:
-            self.graph.nodes[str(node)]['EOTX'] = float('inf')
-            q[str(node)] = node
-        q['D'].seteotx(0.)
-        self.graph.nodes['D']['EOTX'] = 0.
-        while q:
-            node, value = min(q.items(), key=lambda x: x[1].geteotx())    # Calculate from destination to source
-            del q[node]
-            for neighbor in self.graph.neighbors(node):
-                if neighbor not in q:
-                    continue
-                eotx_t[neighbor] += \
-                    self.graph.edges[node, neighbor]['weight'] * eotx_p[neighbor] * self.graph.nodes[node]['EOTX']
-                eotx_p[neighbor] *= (1 - self.graph.edges[node, neighbor]['weight'])
-                self.graph.nodes[neighbor]['EOTX'] = eotx_t[neighbor] / (1 - eotx_p[neighbor])
-                q[neighbor].seteotx(self.graph.nodes[neighbor]['EOTX'])
-
 
 if __name__ == '__main__':
-    llevel = logging.DEBUG
+    llevel = logging.INFO
     logging.basicConfig(
         filename='main.log', level=llevel, format='%(asctime)s %(levelname)s\t %(message)s', filemode='w')
     args = parse_args()

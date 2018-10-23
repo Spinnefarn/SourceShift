@@ -16,7 +16,8 @@ class Node:
         self.fieldsize = fieldsize
         self.batch = 0
         self.eotx = float('inf')
-        self.credit = 0
+        self.creditcounter = 0.
+        self.credit = 0.
         self.complete = (name == 'S')
         self.trash = []
 
@@ -59,7 +60,7 @@ class Node:
 
     def getcredit(self):
         """Tell the amount of tx credit."""
-        return self.credit
+        return self.creditcounter
 
     def geteotx(self):
         """Get eotx."""
@@ -90,20 +91,27 @@ class Node:
                     self.buffer = np.vstack([self.buffer, coding])
                 else:
                     if self.complete or self.isdone():
-                        logging.debug('Got linear dependent packet at {}, decoder full'.format(self.name))
+                        logging.info('Got linear dependent packet at {}, decoder full time = {}'.format(self.name,
+                                                                                                         timestamp))
                         self.trash.append(timestamp)
                     else:
-                        logging.debug('Got linear dependent packet at {} coding {}'.format(self.name, str(coding)))
+                        logging.info('Got linear dependent packet at {} coding {}, time {}'.format(self.name,
+                                                                                                    str(coding),
+                                                                                                    timestamp))
                         self.trash.append(timestamp)
             if preveotx > self.eotx:
-                self.credit += 1
+                self.creditcounter += self.credit
         self.incbuffer = []
         if self.name != 'S' and not self.complete:
             self.complete = self.coding == np.linalg.matrix_rank(self.buffer)
 
     def reducecredit(self):
         """Reduce tx credit."""
-        self.credit -= 1
+        self.creditcounter -= 1
+
+    def setcredit(self, credit):
+        """Set custom tx credit."""
+        self.credit = credit
 
     def seteotx(self, eotx=float('inf')):
         """Set eotx to given value."""
