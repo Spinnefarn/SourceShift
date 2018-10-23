@@ -52,8 +52,19 @@ class Node:
                     coding = np.random.randint(self.fieldsize, size=self.coding)
                 return coding
             recoded = []
+            modbuffer = np.array([], dtype=int)
+            for line in self.buffer:
+                newline = [0]
+                if len(modbuffer):
+                    while sum(newline) == 0:
+                        newline = (np.random.randint(self.fieldsize) * line) % self.fieldsize
+                    modbuffer = np.vstack([modbuffer, newline])
+                else:
+                    while sum(newline) == 0:
+                        newline = (np.random.randint(self.fieldsize) * line) % self.fieldsize
+                    modbuffer = np.array([newline])
             for i in range(len(self.buffer[0])):
-                recoded.append(sum(self.buffer[:, i]) % self.fieldsize)  # Recode to get new packet
+                recoded.append(sum(modbuffer[:, i]) % self.fieldsize)  # Recode to get new packet
             return np.array(recoded)
         else:
             return None

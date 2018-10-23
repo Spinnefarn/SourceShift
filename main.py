@@ -17,7 +17,7 @@ def parse_args():
                         dest='json',
                         type=str,
                         help='should contain network configuration',
-                        default='network.json')
+                        default='network1.json')
     parser.add_argument('-c', '--coding',
                         dest='coding',
                         type=int,
