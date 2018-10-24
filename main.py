@@ -33,11 +33,11 @@ def parse_args():
                         type=int,
                         help='Amount of nodes allowed to send per timeslot.',
                         default=0)
-    parser.add_argument('-o', '-o-wn',
+    parser.add_argument('-o', '--own',
                         dest='own',
                         type=bool,
                         help='Use own approach or MORE.',
-                        default=True)
+                        default=False)
     return parser.parse_args()
 
 
@@ -76,9 +76,9 @@ class Simulator:
     def broadcast(self, node):
         """Broadcast given packet to all neighbors."""
         for neighbor in list(self.graph.neighbors(str(node))):
-            if self.graph.edges[str(node), neighbor]['weight'] > random.random():   # roll dice
-                if neighbor != 'S':    # Source will not receive a packet, but still written down
-                    for name in self.nodes:         # Add received Packet to buffer with coding
+            if self.graph.edges[str(node), neighbor]['weight'] > random.random():  # roll dice
+                if neighbor != 'S':  # Source will not receive a packet, but still written down
+                    for name in self.nodes:  # Add received Packet to buffer with coding
                         if str(name) == neighbor:
                             special = False
                             for invnei in self.graph.neighbors(neighbor):
@@ -135,7 +135,7 @@ class Simulator:
         q['D'].seteotx(0.)
         self.graph.nodes['D']['EOTX'] = 0.
         while q:
-            node, value = min(q.items(), key=lambda x: x[1].geteotx())    # Calculate from destination to source
+            node, value = min(q.items(), key=lambda x: x[1].geteotx())  # Calculate from destination to source
             del q[node]
             for neighbor in self.graph.neighbors(node):
                 if neighbor not in q:
@@ -150,21 +150,21 @@ class Simulator:
         """Calculate the amount of tx credit the receiver gets."""
         l_n = {node: self.graph.nodes[node]['EOTX'] for node in self.graph.nodes}
         l_n = sorted(l_n.items(), key=lambda kv: kv[1])
-        l = {key[0]: 0 for key in l_n if key[0] != 'D'}
-        l['S'] = 1
-        for idx, node in enumerate(list(l.keys())[::-1]):
-            self.z[node] = l[node] / (1 - self.calce(node))
+        l_i = {key[0]: 0 for key in l_n if key[0] != 'D'}
+        l_i['S'] = 1
+        for idx, node in enumerate(list(l_i.keys())[::-1]):
+            self.z[node] = l_i[node] / (1 - self.calce(node))
             p = 1
-            for idx2, j in enumerate(list(l.keys())[:(len(l.keys()) - idx - 1)]):
+            for idx2, j in enumerate(list(l_i.keys())[:(len(l_i.keys()) - idx - 1)]):
                 try:
                     if idx2 == 0:
                         p *= (1 - self.graph.edges[node, 'D']['weight'])
                     else:
-                        p *= (1 - self.graph.edges[node, list(l.keys())[idx2 - 1]]['weight'])
+                        p *= (1 - self.graph.edges[node, list(l_i.keys())[idx2 - 1]]['weight'])
                 except KeyError:
                     pass
                 try:
-                    l[j] += self.z[node] * p * self.graph.edges[node, j]['weight']
+                    l_i[j] += self.z[node] * p * self.graph.edges[node, j]['weight']
                 except KeyError:
                     pass
         for node in self.nodes:
@@ -175,9 +175,30 @@ class Simulator:
                 if self.graph.nodes[neighbor]['EOTX'] > node.geteotx():
                     value += self.z[neighbor] * self.graph.edges[str(node), neighbor]['weight']
             try:
-                node.setcredit(self.z[str(node)]/value)
+                node.setcredit(self.z[str(node)] / value)
             except ZeroDivisionError:
                 pass
+
+    def checkstate(self):
+        """Node should stop sending if all neighbors have complete information."""
+        for node in self.nodes:
+            if node.getquiet():             # Do not check nodes twice
+                return
+            allcomplete = node.isdone()     # Just check if node itself is done
+            for neighbor in self.graph.neighbors(str(node)):
+                if not allcomplete:
+                    break
+                for neighbornode in self.nodes:
+                    if str(neighbornode) == neighbor:
+                        allcomplete = neighbornode.isdone()    # Every neighbor closer to destination has to be done
+                        break
+            if allcomplete:
+                node.stopsending()
+                for neighbor in self.graph.neighbors(str(node)):
+                    for neighbornode in self.nodes:
+                        if str(neighbornode) == neighbor:
+                            neighbornode.becomesource()
+                            break
 
     def createnetwork(self, config):
         """Create network using networkx library based on configuration given as dict."""
@@ -218,25 +239,25 @@ class Simulator:
 
     def drawtrash(self):
         """Draw linear dependent packets over time and nodes"""
-        maxval = []
+        maxval, sumval = [], []
         plt.figure(figsize=(10, 5))
         trashdict = {}
         amts = {ts: 0 for ts in range(self.timestamp)}
-        cmap, i = plt.get_cmap('tab20'), 0
+        cmap, colorcounter = plt.get_cmap('tab20'), 0
         for node in self.nodes:
             if str(node) != 'S':
                 trash, amount = node.gettrash(self.timestamp)
                 trashdict[str(node)] = (trash, amount)
-                plt.bar(trash, amount, bottom=list(amts.values()), label=str(node), color=cmap(i), alpha=0.5)
+                plt.bar(trash, amount, bottom=list(amts.values()), label=str(node), color=cmap(colorcounter), alpha=0.5)
                 for key, number in zip(trash, amount):
                     if key in amts:
                         amts[key] += number
                     else:
                         amts[key] = number
-                # plt.scatter(trash, amount, marker='x', label=str(node), alpha=0.5)
                 if len(amount):
                     maxval.append(max(amount))
-            i += 1
+                    sumval.append(sum(amount))
+            colorcounter += 1
         plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         plt.ylabel('Amount of linear depended packets')
         plt.xlabel('Timestamp')
@@ -248,6 +269,7 @@ class Simulator:
         plt.tight_layout()
         plt.savefig('lineardependent.pdf')
         plt.close()
+        logging.info('{} linear dependent packets arrived.'.format(sum(sumval)))
 
     def getgraph(self):
         """Return graph."""
@@ -258,7 +280,6 @@ class Simulator:
         self.createnetwork(readconf(jsonfile))
         self.calceotx()
         self.calc_tx_credit()
-        self.pos = nx.spring_layout(self.graph).copy()
         self.drawunused()
         plt.close()
         logging.info('Created network from JSON successfully!')
@@ -280,17 +301,18 @@ class Simulator:
     def sendall(self):
         """All nodes send at same time."""
         for node in self.nodes:
-            if str(node) == 'S':
+            if str(node) == 'S' and not node.getquiet():
                 self.broadcast(node)
                 self.airtime[str(node)].append(self.timestamp)
-            elif str(node) != 'D' and node.getcredit() > 0:
+            elif str(node) != 'D' and node.getcredit() > 0 and not node.getquiet():
                 self.broadcast(node)
                 node.reducecredit()
                 self.airtime[str(node)].append(self.timestamp)
 
     def sendsel(self):
         """Just the selected amount of nodes send at one timeslot."""
-        goodnodes = [node for node in self.nodes if (node.getcredit() > 0) or (str(node) == 'S')]
+        goodnodes = [           # Goodnode are nodes which are allowed to send
+            node for node in self.nodes if ((node.getcredit() > 0) or (str(node) == 'S')) and not node.getquiet()]
         maxsend = self.sendam if len(goodnodes) > self.sendam else len(goodnodes)
         for _ in range(maxsend):
             k = random.randint(0, len(goodnodes) - 1)
@@ -306,6 +328,8 @@ class Simulator:
     def update(self):
         """Update one timestep."""
         if not self.done:
+            if self.own:
+                self.checkstate()
             if self.sendam:
                 self.sendsel()
             else:
@@ -335,5 +359,12 @@ if __name__ == '__main__':
         sim.newbatch()
     sim.drawused()
     sim.drawtrash()
-    logging.info('Packet arrived at destination. {}'.format(sim.getpath()))
+    # logging.info('Packet arrived at destination. {}'.format(sim.getpath()))
+    with open('path.json', 'w') as f:
+        newdata = {}
+        for batch in sim.getpath():
+            newdata[batch] = {}
+            for key, value in sim.getpath()[batch].items():
+                newdata[batch][str(key)] = value
+        json.dump(newdata, f)
     logging.info('Total used airtime {}'.format(sim.calcairtime()))

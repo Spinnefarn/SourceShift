@@ -20,6 +20,7 @@ class Node:
         self.credit = 0.
         self.complete = (name == 'S')
         self.trash = []
+        self.quiet = False
 
     def __str__(self):
         return str(self.name)
@@ -27,6 +28,12 @@ class Node:
     def buffpacket(self, batch=0, coding=None, preveotx=0, special=False):
         """Buffer incoming packets so they will be received at end of time slot."""
         self.incbuffer.append((batch, coding, preveotx, special))
+
+    def becomesource(self):
+        """Act like source. Will be triggered if all neighbors are complete."""
+        if not self.complete:
+            logging.error('All neighbors are complete but not this one? '.format(self.name))
+        self.creditcounter = float('inf')
 
     def isdone(self):
         """Return True if able to decode."""
@@ -81,6 +88,10 @@ class Node:
         """Return name of the node."""
         return self.name
 
+    def getquiet(self):
+        """Return true if quiet."""
+        return self.quiet
+
     def gettrash(self, maxts):
         """Return trash."""
         x, y = np.unique(self.trash, return_counts=True)
@@ -99,6 +110,7 @@ class Node:
         """Make destination awaiting new batch."""
         self.batch += 1
         self.buffer = np.array([], dtype=int)
+        self.quiet = False
 
     def rcvpacket(self, timestamp):
         """Add received Packet to buffer. Do this at end of timeslot."""
@@ -107,6 +119,10 @@ class Node:
                 return
             elif batch != self.batch or not len(self.buffer):  # Delete it if you're working on deprecated batch
                 self.buffer = np.array([coding], dtype=int)
+                if self.creditcounter == float('inf'):      # Return to normal if new batch arrives
+                    self.creditcounter = 0.
+                if self.quiet:
+                    self.quiet = False
             else:  # Just add new information if its new
                 if np.linalg.matrix_rank(self.buffer) < np.linalg.matrix_rank(np.vstack([self.buffer, coding])):
                     self.buffer = np.vstack([self.buffer, coding])
@@ -139,3 +155,7 @@ class Node:
     def seteotx(self, eotx=float('inf')):
         """Set eotx to given value."""
         self.eotx = eotx
+
+    def stopsending(self):
+        """Stop sending if every neighbor is complete."""
+        self.quiet = True
