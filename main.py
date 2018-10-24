@@ -17,7 +17,7 @@ def parse_args():
                         dest='json',
                         type=str,
                         help='should contain network configuration',
-                        default='network1.json')
+                        default='graph.json')
     parser.add_argument('-c', '--coding',
                         dest='coding',
                         type=int,
@@ -45,7 +45,8 @@ def readconf(jsonfile):
     """Read configuration file."""
     with open(jsonfile) as f:
         config = json.loads(f.read())
-    return config
+    pos = {node: [config['nodes'][node]['x'], config['nodes'][node]['y']] for node in config['nodes']}
+    return config['links'], pos
 
 
 class Simulator:
@@ -100,7 +101,6 @@ class Simulator:
         for node in self.airtime.keys():
             summe += len(self.airtime[node])
         return summe
-
 
     def calce(self, node):
         """Calc the probability a packet is not received by any destination."""
@@ -160,7 +160,6 @@ class Simulator:
                     if idx2 == 0:
                         p *= (1 - self.graph.edges[node, 'D']['weight'])
                     else:
-                        x = list(l.keys())[idx2 - 1]
                         p *= (1 - self.graph.edges[node, list(l.keys())[idx2 - 1]]['weight'])
                 except KeyError:
                     pass
@@ -182,10 +181,10 @@ class Simulator:
 
     def createnetwork(self, config):
         """Create network using networkx library based on configuration given as dict."""
+        self.pos = config[1]
         configlist = []
-        for (src, con) in config.items():
-            for (dst, wgt) in con.items():
-                configlist.append((src, dst, wgt))
+        for edge in config[0]:
+            configlist.append((edge['nodes'][0], edge['nodes'][1], edge['loss']))
         self.graph = nx.Graph()
         self.graph.add_weighted_edges_from(configlist)
         self.nodes = [components.Node(name=name, coding=self.coding, fieldsize=self.fieldsize)
@@ -244,10 +243,10 @@ class Simulator:
         plt.ylim(ymin=0)
         plt.xlim(xmin=0)
         plt.yticks(range(1, max(amts.values()) + 1, 1))
-        plt.title('Amount of linear depended packets for each node.')
+        plt.title('Amount of linear dependent packets for each node.')
         plt.grid(True)
         plt.tight_layout()
-        plt.savefig('lineardepended.pdf')
+        plt.savefig('lineardependent.pdf')
         plt.close()
 
     def getgraph(self):
