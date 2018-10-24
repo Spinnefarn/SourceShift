@@ -33,6 +33,11 @@ def parse_args():
                         type=int,
                         help='Amount of nodes allowed to send per timeslot.',
                         default=0)
+    parser.add_argument('-o', '-o-wn',
+                        dest='own',
+                        type=bool,
+                        help='Use own approach or MORE.',
+                        default=True)
     return parser.parse_args()
 
 
@@ -46,7 +51,8 @@ def readconf(jsonfile):
 class Simulator:
     """Round based simulator to simulate traffic in meshed network."""
 
-    def __init__(self, loglevel=logging.INFO, jsonfile=None, coding=None, fieldsize=2, sendall=0):
+    def __init__(self, loglevel=logging.INFO, jsonfile=None, coding=None, fieldsize=2, sendall=0, own=True):
+        self.airtime = {}
         self.config = {}
         self.graph = None
         self.nodes = []
@@ -64,20 +70,45 @@ class Simulator:
         self.done = False
         self.path = {}
         self.timestamp = 0
+        self.own = own
 
     def broadcast(self, node):
         """Broadcast given packet to all neighbors."""
         for neighbor in list(self.graph.neighbors(str(node))):
-            if self.graph.edges[str(node), neighbor]['weight'] > random.random() and neighbor != 'S':    # roll dice
-                for name in self.nodes:         # Add received Packet to buffer with coding
-                    if str(name) == neighbor:
-                        name.buffpacket(batch=node.getbatch(), coding=node.getcoded(), preveotx=node.geteotx())
-                        break
+            if self.graph.edges[str(node), neighbor]['weight'] > random.random():   # roll dice
+                if neighbor != 'S':    # Source will not receive a packet, but still written down
+                    for name in self.nodes:         # Add received Packet to buffer with coding
+                        if str(name) == neighbor:
+                            special = False
+                            for invnei in self.graph.neighbors(neighbor):
+                                if self.graph.nodes[neighbor]['EOTX'] > self.graph.nodes[invnei]['EOTX']:
+                                    if invnei != str(node) and self.own:
+                                        special = True
+                                        break
+                            name.buffpacket(batch=node.getbatch(), coding=node.getcoded(), preveotx=node.geteotx(),
+                                            special=special)
+                            break
                 if node.getbatch() not in self.path:
                     self.path[node.getbatch()] = {}
                 if (str(node), neighbor) not in self.path[node.getbatch()]:
                     self.path[node.getbatch()][(str(node), neighbor)] = []
                 self.path[node.getbatch()][(str(node), neighbor)].append(self.timestamp)
+
+    def calcairtime(self):
+        """Calculate the amount of used airtime in total."""
+        summe = 0
+        for node in self.airtime.keys():
+            summe += len(self.airtime[node])
+        return summe
+
+
+    def calce(self, node):
+        """Calc the probability a packet is not received by any destination."""
+        e = 1
+        for neighbor in self.graph.neighbors(node):
+            if self.graph.nodes[neighbor]['EOTX'] < self.graph.nodes[node]['EOTX']:
+                e *= (1 - self.graph.edges[node, neighbor]['weight'])
+        return e
 
     def calceotx(self):
         """Calculate ETX for every node. i/j current node,
@@ -149,14 +180,6 @@ class Simulator:
             except ZeroDivisionError:
                 pass
 
-    def calce(self, node):
-        """Calc the probability a packet is not received by any destination."""
-        e = 1
-        for neighbor in self.graph.neighbors(node):
-            if self.graph.nodes[neighbor]['EOTX'] < self.graph.nodes[node]['EOTX']:
-                e *= (1 - self.graph.edges[node, neighbor]['weight'])
-        return e
-
     def createnetwork(self, config):
         """Create network using networkx library based on configuration given as dict."""
         configlist = []
@@ -167,6 +190,8 @@ class Simulator:
         self.graph.add_weighted_edges_from(configlist)
         self.nodes = [components.Node(name=name, coding=self.coding, fieldsize=self.fieldsize)
                       for name in self.graph.nodes]
+        for node in self.nodes:
+            self.airtime[str(node)] = []
 
     def drawunused(self):
         """Draw initial graph."""
@@ -187,7 +212,7 @@ class Simulator:
             edgelist.extend(list(self.path[batch].keys()))
             for edge in self.path[batch].keys():
                 edgelist.extend([edge for _ in self.path[batch][edge]])
-        nx.draw_networkx_edges(self.graph, pos=self.pos, edgelist=edgelist, width=8, alpha=0.01,
+        nx.draw_networkx_edges(self.graph, pos=self.pos, edgelist=edgelist, width=8, alpha=0.1,
                                edge_color='purple')
         plt.savefig('usedgraph.pdf')
         plt.close()
@@ -197,19 +222,30 @@ class Simulator:
         maxval = []
         plt.figure(figsize=(10, 5))
         trashdict = {}
+        amts = {ts: 0 for ts in range(self.timestamp)}
+        cmap, i = plt.get_cmap('tab20'), 0
         for node in self.nodes:
-            trash, amount = node.gettrash()
-            trashdict[str(node)] = (trash, amount)
-            plt.scatter(trash, amount, marker='x', label=str(node), alpha=0.5)
-            if len(amount):
-                maxval.append(max(amount))
+            if str(node) != 'S':
+                trash, amount = node.gettrash(self.timestamp)
+                trashdict[str(node)] = (trash, amount)
+                plt.bar(trash, amount, bottom=list(amts.values()), label=str(node), color=cmap(i), alpha=0.5)
+                for key, number in zip(trash, amount):
+                    if key in amts:
+                        amts[key] += number
+                    else:
+                        amts[key] = number
+                # plt.scatter(trash, amount, marker='x', label=str(node), alpha=0.5)
+                if len(amount):
+                    maxval.append(max(amount))
+            i += 1
         plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         plt.ylabel('Amount of linear depended packets')
         plt.xlabel('Timestamp')
         plt.ylim(ymin=0)
         plt.xlim(xmin=0)
-        plt.yticks(range(1, max(maxval) + 1, 1))
+        plt.yticks(range(1, max(amts.values()) + 1, 1))
         plt.title('Amount of linear depended packets for each node.')
+        plt.grid(True)
         plt.tight_layout()
         plt.savefig('lineardepended.pdf')
         plt.close()
@@ -247,9 +283,11 @@ class Simulator:
         for node in self.nodes:
             if str(node) == 'S':
                 self.broadcast(node)
+                self.airtime[str(node)].append(self.timestamp)
             elif str(node) != 'D' and node.getcredit() > 0:
                 self.broadcast(node)
                 node.reducecredit()
+                self.airtime[str(node)].append(self.timestamp)
 
     def sendsel(self):
         """Just the selected amount of nodes send at one timeslot."""
@@ -259,9 +297,11 @@ class Simulator:
             k = random.randint(0, len(goodnodes) - 1)
             if str(goodnodes[k]) == 'S':
                 self.broadcast(goodnodes[k])
+                self.airtime[str(goodnodes[k])].append(self.timestamp)
             elif str(goodnodes[k]) != 'D':
                 self.broadcast(goodnodes[k])
                 goodnodes[k].reducecredit()
+                self.airtime[str(goodnodes[k])].append(self.timestamp)
             del goodnodes[k]
 
     def update(self):
@@ -288,7 +328,7 @@ if __name__ == '__main__':
         filename='main.log', level=llevel, format='%(asctime)s %(levelname)s\t %(message)s', filemode='w')
     args = parse_args()
     sim = Simulator(loglevel=llevel, jsonfile=args.json, coding=args.coding, fieldsize=args.fieldsize,
-                    sendall=args.sendam)
+                    sendall=args.sendam, own=args.own)
     for i in range(20):
         done = False
         while not done:
@@ -297,3 +337,4 @@ if __name__ == '__main__':
     sim.drawused()
     sim.drawtrash()
     logging.info('Packet arrived at destination. {}'.format(sim.getpath()))
+    logging.info('Total used airtime {}'.format(sim.calcairtime()))

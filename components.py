@@ -24,9 +24,9 @@ class Node:
     def __str__(self):
         return str(self.name)
 
-    def buffpacket(self, batch=0, coding=None, preveotx=0):
+    def buffpacket(self, batch=0, coding=None, preveotx=0, special=False):
         """Buffer incoming packets so they will be received at end of time slot."""
-        self.incbuffer.append((batch, coding, preveotx))
+        self.incbuffer.append((batch, coding, preveotx, special))
 
     def isdone(self):
         """Return True if able to decode."""
@@ -38,17 +38,17 @@ class Node:
 
     def getcoded(self):
         """Return a (re)coded packet."""
-        if self.name == 'D':            # Make sure destination will never send a packet
+        if self.name == 'D':  # Make sure destination will never send a packet
             return None
         elif self.name == 'S':
             coding = [0]
             while sum(coding) == 0:  # Use random coding instead of recoding if rank is full
                 coding = np.random.randint(self.fieldsize, size=self.coding)
             return coding
-        elif self.credit > 0:           # Check tx credit
+        elif self.creditcounter > 0:  # Check tx credit
             if self.complete or self.isdone():
                 coding = [0]
-                while sum(coding) == 0:     # Use random coding instead of recoding if rank is full
+                while sum(coding) == 0:  # Use random coding instead of recoding if rank is full
                     coding = np.random.randint(self.fieldsize, size=self.coding)
                 return coding
             recoded = []
@@ -81,9 +81,19 @@ class Node:
         """Return name of the node."""
         return self.name
 
-    def gettrash(self):
+    def gettrash(self, maxts):
         """Return trash."""
-        return np.unique(self.trash, return_counts=True)
+        x, y = np.unique(self.trash, return_counts=True)
+        x, y = list(x), list(y)
+        trashdict = dict(zip(x, y))
+        intdict = {}
+        for ts in range(maxts):
+            if ts not in trashdict:
+                intdict[int(ts)] = 0
+            else:
+                intdict[int(ts)] = int(trashdict[ts])
+        values = [intdict[key] for key in sorted(intdict.keys())]
+        return sorted(intdict.keys()), values
 
     def newbatch(self):
         """Make destination awaiting new batch."""
@@ -92,7 +102,7 @@ class Node:
 
     def rcvpacket(self, timestamp):
         """Add received Packet to buffer. Do this at end of timeslot."""
-        for batch, coding, preveotx in self.incbuffer:
+        for batch, coding, preveotx, special in self.incbuffer:
             if self.name == 'S':  # Cant get new information if you're source
                 return
             elif batch != self.batch or not len(self.buffer):  # Delete it if you're working on deprecated batch
@@ -103,13 +113,15 @@ class Node:
                 else:
                     if self.complete or self.isdone():
                         logging.info('Got linear dependent packet at {}, decoder full time = {}'.format(self.name,
-                                                                                                         timestamp))
+                                                                                                        timestamp))
                         self.trash.append(timestamp)
                     else:
                         logging.info('Got linear dependent packet at {} coding {}, time {}'.format(self.name,
-                                                                                                    str(coding),
-                                                                                                    timestamp))
+                                                                                                   str(coding),
+                                                                                                   timestamp))
                         self.trash.append(timestamp)
+            if special and self.credit == 0:
+                self.creditcounter += 1
             if preveotx > self.eotx:
                 self.creditcounter += self.credit
         self.incbuffer = []
