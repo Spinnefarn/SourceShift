@@ -8,6 +8,7 @@ import logging
 import networkx as nx
 import matplotlib.pylab as plt
 import random
+import time
 
 
 def parse_args():
@@ -43,8 +44,8 @@ def parse_args():
 
 def readconf(jsonfile):
     """Read configuration file."""
-    with open(jsonfile) as f:
-        config = json.loads(f.read())
+    with open(jsonfile) as file:
+        config = json.loads(file.read())
     pos = {node: [config['nodes'][node]['x'], config['nodes'][node]['y']] for node in config['nodes']}
     return config['links'], pos
 
@@ -57,8 +58,7 @@ class Simulator:
         self.config = {}
         self.graph = None
         self.nodes = []
-        self.packets = []
-        self.newpackets = []
+        self.ranklist = {}
         self.z = {}
         self.batch = 0
         self.sendam = sendall
@@ -75,6 +75,7 @@ class Simulator:
 
     def broadcast(self, node):
         """Broadcast given packet to all neighbors."""
+        packet = node.getcoded()
         for neighbor in list(self.graph.neighbors(str(node))):
             if self.graph.edges[str(node), neighbor]['weight'] > random.random():  # roll dice
                 if neighbor != 'S':  # Source will not receive a packet, but still written down
@@ -86,8 +87,8 @@ class Simulator:
                                     if invnei != str(node) and self.own:
                                         special = True
                                         break
-                            name.buffpacket(batch=node.getbatch(), coding=node.getcoded(), preveotx=node.geteotx(),
-                                            special=special)
+                            name.buffpacket(batch=node.getbatch(), coding=packet, preveotx=node.geteotx(),
+                                            special=special, ts=self.timestamp)
                             break
                 if node.getbatch() not in self.path:
                     self.path[node.getbatch()] = {}
@@ -183,7 +184,7 @@ class Simulator:
         """Node should stop sending if all neighbors have complete information."""
         for node in self.nodes:
             if node.getquiet():             # Do not check nodes twice
-                return
+                continue
             allcomplete = node.isdone()     # Just check if node itself is done
             for neighbor in self.graph.neighbors(str(node)):
                 if not allcomplete:
@@ -212,6 +213,7 @@ class Simulator:
                       for name in self.graph.nodes]
         for node in self.nodes:
             self.airtime[str(node)] = []
+            self.ranklist[str(node)] = []
 
     def drawunused(self):
         """Draw initial graph."""
@@ -295,7 +297,7 @@ class Simulator:
         self.batch += 1
         self.done = False
         for node in self.nodes:
-            if str(node) == 'D':
+            if str(node) in 'SD':
                 node.newbatch()
 
     def sendall(self):
@@ -339,6 +341,7 @@ class Simulator:
                     node.rcvpacket(self.timestamp)
                 if str(node) == 'D':
                     self.done = node.isdone()
+                self.ranklist[str(node)].append(node.getrank())
             self.timestamp += 1
             return self.done
         else:
@@ -352,11 +355,13 @@ if __name__ == '__main__':
     args = parse_args()
     sim = Simulator(loglevel=llevel, jsonfile=args.json, coding=args.coding, fieldsize=args.fieldsize,
                     sendall=args.sendam, own=args.own)
-    for i in range(20):
+    starttime = time.time()
+    for i in range(1):
         done = False
         while not done:
             done = sim.update()
         sim.newbatch()
+    print(time.time()-starttime)
     sim.drawused()
     sim.drawtrash()
     # logging.info('Packet arrived at destination. {}'.format(sim.getpath()))
