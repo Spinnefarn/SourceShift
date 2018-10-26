@@ -28,8 +28,8 @@ def parse_args():
     parser.add_argument('-f', '--fieldsize',
                         dest='fieldsize',
                         type=int,
-                        help='Fieldsize used for coding.',
-                        default=2)
+                        help='Fieldsize used for coding. 2 to the power of x',
+                        default=1)
     parser.add_argument('-sa', '--sendamount',
                         dest='sendam',
                         type=int,
@@ -44,7 +44,7 @@ def parse_args():
                         dest='multiprocessing',
                         type=bool,
                         help='Turn on multiprocessing, default on.',
-                        default=True)
+                        default=False)
     return parser.parse_args()
 
 
@@ -255,7 +255,7 @@ class Simulator:
         plt.savefig('usedgraph.pdf')
         plt.close()
 
-    def drawtrash(self):
+    def drawtrash(self, kind=None):
         """Draw linear dependent packets over time and nodes"""
         maxval, sumval = [], []
         plt.figure(figsize=(10, 5))
@@ -264,7 +264,10 @@ class Simulator:
         cmap, colorcounter = plt.get_cmap('tab20'), 0
         for node in self.nodes:
             if str(node) != 'S':
-                trash, amount = node.gettrash(self.timestamp)
+                if kind == 'real':
+                    trash, amount = node.getrealtrash(self.timestamp)
+                else:
+                    trash, amount = node.gettrash(self.timestamp)
                 trashdict[str(node)] = (trash, amount)
                 plt.bar(trash, amount, bottom=list(amts.values()), label=str(node), color=cmap(colorcounter), alpha=0.5)
                 for trashtime, number in zip(trash, amount):
@@ -285,7 +288,10 @@ class Simulator:
         plt.title('Amount of linear dependent packets for each node.')
         # plt.grid(True)
         plt.tight_layout()
-        plt.savefig('lineardependent.pdf')
+        if kind == 'real':
+            plt.savefig('reallineardependent.pdf')
+        else:
+            plt.savefig('lineardependent.pdf')
         plt.close()
         logging.info('{} linear dependent packets arrived.'.format(sum(sumval)))
 
@@ -390,6 +396,7 @@ if __name__ == '__main__':
     logging.info('{:3.0f} Seconds needed.'.format(time.time() - starttime))
     sim.drawused()
     sim.drawtrash()
+    sim.drawtrash('real')
     with open('path.json', 'w') as f:
         newdata = {}
         for batch in sim.getpath():

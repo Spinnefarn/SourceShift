@@ -3,20 +3,22 @@
 """Contains bacic network objects like Packets etc.."""
 import numpy as np
 import logging
+import fifi
 
 
-def determinant(matrix, size, fieldsize):
+def determinant(matrix, size, field):
     """Solve determinant with laplace."""
     c = []
     d = 0
     if size == 0:
         for i in range(len(matrix)):
-            d = (d + matrix[i]) % fieldsize
+            d = (field.add(d, matrix[i]))
         return d
     elif len(matrix) == 1:
         return matrix[0]
     elif len(matrix) == 4:
-        c = ((matrix[0] * matrix[3]) - (matrix[1] * matrix[2])) % fieldsize
+        c = field.subtract(field.multiply(int(matrix[0]), int(matrix[3])),
+                           field.multiply(int(matrix[1]), int(matrix[2])))
         return c
     else:
         for j in range(size):
@@ -25,12 +27,12 @@ def determinant(matrix, size, fieldsize):
                 if i % size != j and i >= size:
                     new_matrix.append(matrix[i])
 
-            c.append((determinant(new_matrix, size - 1, fieldsize) * matrix[j] * ((-1) ** (j + 2))) % fieldsize)
-        d = determinant(c, 0, fieldsize)
+            c.append(field.multiply(int(determinant(new_matrix, size - 1, field)), int(matrix[j])))
+        d = determinant(c, 0, field)
         return d
 
 
-def calcrank(matrix, fieldsize):
+def calcrank(matrix, field):
     """Another try."""
     if not len(matrix):
         return 0
@@ -46,29 +48,55 @@ def calcrank(matrix, fieldsize):
                     for idx, binv in enumerate(binj):
                         if binv:
                             linematrix.append(matrix[linenumber][idx])
-                if determinant(linematrix, i, fieldsize):
+                if determinant(linematrix, i, field):
                     return i
+
+
+def makenice(trash, maxts):
+    """Make trash nice to give back."""
+    x, y = np.unique(trash, return_counts=True)
+    x, y = list(x), list(y)
+    trashdict = dict(zip(x, y))
+    intdict = {}
+    for ts in range(maxts):
+        if ts not in trashdict:
+            intdict[int(ts)] = 0
+        else:
+            intdict[int(ts)] = int(trashdict[ts])
+    values = [intdict[key] for key in sorted(intdict.keys())]
+    return sorted(intdict.keys()), values
 
 
 class Node:
     """Representation of a node on the network."""
 
-    def __init__(self, name='S', coding=None, fieldsize=2):
+    def __init__(self, name='S', coding=None, fieldsize=1):
         self.name = name
         self.buffer = np.array([], dtype=int)
+        self.fieldsize = 2 ** fieldsize
         self.incbuffer = []
         self.coding = coding
-        self.fieldsize = fieldsize
         self.batch = 0
         self.eotx = float('inf')
         self.creditcounter = 0. if self.name != 'S' else float('inf')
         self.credit = 0.
         self.complete = (name == 'S')
         self.trash = []
+        self.realtrash = []
         self.quiet = False
         self.history = []
         self.sendhistory = []
         self.rank = 0 if self.name != 'S' else coding
+        if fieldsize == 1:
+            self.field = fifi.simple_online_binary()
+        elif fieldsize == 4:
+            self.field = fifi.simple_online_binary4()
+        elif fieldsize == 8:
+            self.field = fifi.simple_online_binary8()
+        elif fieldsize == 16:
+            self.field = fifi.simple_online_binary16()
+        else:
+            raise ValueError('Unsupported field size!')
 
     def __str__(self):
         return str(self.name)
@@ -101,26 +129,30 @@ class Node:
             coding = [0]
             while sum(coding) == 0:  # Use random coding instead of recoding if rank is full
                 coding = np.random.randint(self.fieldsize, size=self.coding)
+            self.sendhistory.append(coding)
             return coding
         elif self.creditcounter > 0:  # Check tx credit
             if self.isdone():
                 coding = [0]
                 while sum(coding) == 0:  # Use random coding instead of recoding if rank is full
-                    coding = np.random.randint(self.fieldsize, size=self.coding)
+                    coding = np.random.randint(self.fieldsize, size=self.coding, dtype=int)
                 return coding
             recoded = [0]
             while sum(recoded) == 0:
                 modbuffer = np.array([], dtype=int)
                 for line in self.buffer:
+                    randomnumber = int(np.random.randint(self.fieldsize))
+                    newline = [self.field.multiply(randomnumber, int(x)) for x in line]
                     if len(modbuffer):
-                        newline = (np.random.randint(self.fieldsize) * line) % self.fieldsize
                         modbuffer = np.vstack([modbuffer, newline])
                     else:
-                        newline = (np.random.randint(self.fieldsize) * line) % self.fieldsize
-                        modbuffer = np.array([newline])
+                        modbuffer = np.array([newline], dtype=int)
                 recoded = []
                 for i in range(len(self.buffer[0])):
-                    recoded.append(sum(modbuffer[:, i]) % self.fieldsize)  # Recode to get new packet
+                    summe = 0
+                    for j in modbuffer[:, i]:
+                        summe = self.field.add(int(summe), int(j))
+                    recoded.append(summe)           # Recode to get new packet
             self.sendhistory.append(recoded)
             return np.array(recoded)
         else:
@@ -146,19 +178,13 @@ class Node:
         """Return current rank."""
         return self.rank
 
+    def getrealtrash(self, maxts):
+        """Return real interesting trash."""
+        return makenice(self.realtrash, maxts)
+
     def gettrash(self, maxts):
         """Return trash."""
-        x, y = np.unique(self.trash, return_counts=True)
-        x, y = list(x), list(y)
-        trashdict = dict(zip(x, y))
-        intdict = {}
-        for ts in range(maxts):
-            if ts not in trashdict:
-                intdict[int(ts)] = 0
-            else:
-                intdict[int(ts)] = int(trashdict[ts])
-        values = [intdict[key] for key in sorted(intdict.keys())]
-        return sorted(intdict.keys()), values
+        return makenice(self.trash, maxts)
 
     def listenstate(self, information):
         """Set state someone told."""
@@ -187,20 +213,24 @@ class Node:
             elif batch > self.batch or not len(self.buffer):  # Delete it if you're working on deprecated batch
                 self.buffer = np.array([coding], dtype=int)
                 self.batch = batch
-                self.complete = False
+                self.rank = 1 if self.name != 'S' else self.coding
+                self.complete = self.name == 'S'
                 if self.creditcounter == float('inf'):  # Return to normal if new batch arrives
                     self.creditcounter = 0.
                 if self.quiet:
                     self.quiet = False
             else:  # Just add new information if its new
-                if calcrank(self.buffer, self.fieldsize) < calcrank(np.vstack([self.buffer, coding]), self.fieldsize):
+                newrank = calcrank(np.vstack([self.buffer, coding]), self.field)
+                if self.rank < newrank:
                     self.buffer = np.vstack([self.buffer, coding])
+                    self.rank = newrank
+                elif preveotx > self.eotx:
+                    self.realtrash.append(timestamp)
                 else:
                     if self.complete:
                         logging.debug('Got linear dependent packet at {}, decoder full time = {}'.format(self.name,
                                                                                                          timestamp))
                         self.trash.append(timestamp)
-                        pass
                     else:
                         logging.debug('Got linear dependent packet at {} coding {}, time {}'.format(self.name,
                                                                                                     str(coding),
@@ -212,7 +242,6 @@ class Node:
                 self.creditcounter += self.credit
         self.incbuffer = []
         if self.name != 'S':
-            self.rank = calcrank(self.buffer, self.fieldsize)
             self.complete = self.coding == self.rank
 
     def reducecredit(self):
