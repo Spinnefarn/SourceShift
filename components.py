@@ -61,13 +61,14 @@ class Node:
         self.fieldsize = fieldsize
         self.batch = 0
         self.eotx = float('inf')
-        self.creditcounter = 0.
+        self.creditcounter = 0. if self.name != 'S' else float('inf')
         self.credit = 0.
         self.complete = (name == 'S')
         self.trash = []
         self.quiet = False
         self.history = []
         self.sendhistory = []
+        self.rank = 0 if self.name != 'S' else coding
 
     def __str__(self):
         return str(self.name)
@@ -85,7 +86,8 @@ class Node:
 
     def isdone(self):
         """Return True if able to decode."""
-        return (self.coding == calcrank(self.buffer, self.fieldsize)) or self.name == 'S'
+        self.complete = self.coding == self.rank
+        return self.complete
 
     def getbatch(self):
         """Return current batch."""
@@ -142,10 +144,7 @@ class Node:
 
     def getrank(self):
         """Return current rank."""
-        if self.name == 'S':
-            return self.coding
-        else:
-            return calcrank(self.buffer, self.fieldsize)
+        return self.rank
 
     def gettrash(self, maxts):
         """Return trash."""
@@ -161,21 +160,34 @@ class Node:
         values = [intdict[key] for key in sorted(intdict.keys())]
         return sorted(intdict.keys()), values
 
+    def listenstate(self, information):
+        """Set state someone told."""
+        self.buffer = information[0].copy()
+        self.incbuffer = []
+        self.rank = information[1]
+        self.trash = information[2].copy()
+        if self.batch < information[3]:
+            self.batch = information[3]
+            self.quiet = False
+        self.creditcounter = information[4]
+        self.complete = self.coding == self.rank
+
     def newbatch(self):
         """Make destination awaiting new batch."""
         self.batch += 1
         self.buffer = np.array([], dtype=int)
-        # self.complete = False
+        self.complete = self.name == 'S'
         self.quiet = False
 
     def rcvpacket(self, timestamp):
         """Add received Packet to buffer. Do this at end of timeslot."""
         for batch, coding, preveotx, special in self.incbuffer:
             if self.name == 'S':  # Cant get new information if you're source
-                return
+                break
             elif batch > self.batch or not len(self.buffer):  # Delete it if you're working on deprecated batch
                 self.buffer = np.array([coding], dtype=int)
                 self.batch = batch
+                self.complete = False
                 if self.creditcounter == float('inf'):  # Return to normal if new batch arrives
                     self.creditcounter = 0.
                 if self.quiet:
@@ -184,14 +196,15 @@ class Node:
                 if calcrank(self.buffer, self.fieldsize) < calcrank(np.vstack([self.buffer, coding]), self.fieldsize):
                     self.buffer = np.vstack([self.buffer, coding])
                 else:
-                    if self.isdone():
-                        logging.info('Got linear dependent packet at {}, decoder full time = {}'.format(self.name,
-                                                                                                        timestamp))
+                    if self.complete:
+                        logging.debug('Got linear dependent packet at {}, decoder full time = {}'.format(self.name,
+                                                                                                         timestamp))
                         self.trash.append(timestamp)
+                        pass
                     else:
-                        logging.info('Got linear dependent packet at {} coding {}, time {}'.format(self.name,
-                                                                                                   str(coding),
-                                                                                                   timestamp))
+                        logging.debug('Got linear dependent packet at {} coding {}, time {}'.format(self.name,
+                                                                                                    str(coding),
+                                                                                                    timestamp))
                         self.trash.append(timestamp)
             if special and self.credit == 0:
                 self.creditcounter += 1
@@ -199,7 +212,8 @@ class Node:
                 self.creditcounter += self.credit
         self.incbuffer = []
         if self.name != 'S':
-            self.complete = self.coding == calcrank(self.buffer, self.fieldsize)
+            self.rank = calcrank(self.buffer, self.fieldsize)
+            self.complete = self.coding == self.rank
 
     def reducecredit(self):
         """Reduce tx credit."""
@@ -216,3 +230,7 @@ class Node:
     def stopsending(self):
         """Stop sending if every neighbor is complete."""
         self.quiet = True
+
+    def tellstate(self):
+        """Tell current state."""
+        return self.name, self.buffer.copy(), self.rank, self.trash.copy(), self.batch, self.creditcounter

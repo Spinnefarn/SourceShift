@@ -9,6 +9,7 @@ import networkx as nx
 import matplotlib.pylab as plt
 import random
 import time
+from multiprocessing import Process, Queue
 
 
 def parse_args():
@@ -39,6 +40,11 @@ def parse_args():
                         type=bool,
                         help='Use own approach or MORE.',
                         default=False)
+    parser.add_argument('-m', '--multiprocessing',
+                        dest='multiprocessing',
+                        type=bool,
+                        help='Turn on multiprocessing, default on.',
+                        default=True)
     return parser.parse_args()
 
 
@@ -50,10 +56,18 @@ def readconf(jsonfile):
     return config['links'], pos
 
 
+def receive(queue, node, timestamp):
+    """Receive the packets at node and do some logging."""
+    if str(node) != 'S':
+        node.rcvpacket(timestamp)
+    queue.put(node.tellstate())
+
+
 class Simulator:
     """Round based simulator to simulate traffic in meshed network."""
 
-    def __init__(self, loglevel=logging.INFO, jsonfile=None, coding=None, fieldsize=2, sendall=0, own=True):
+    def __init__(self, loglevel=logging.INFO, jsonfile=None, coding=None, fieldsize=2, sendall=0, own=True,
+                 multiprocessing=True):
         self.airtime = {}
         self.config = {}
         self.graph = None
@@ -72,6 +86,8 @@ class Simulator:
         self.path = {}
         self.timestamp = 0
         self.own = own
+        self.donedict = {}
+        self.multiprocessing = multiprocessing
 
     def broadcast(self, node):
         """Broadcast given packet to all neighbors."""
@@ -136,7 +152,7 @@ class Simulator:
         q['D'].seteotx(0.)
         self.graph.nodes['D']['EOTX'] = 0.
         while q:
-            node, value = min(q.items(), key=lambda x: x[1].geteotx())  # Calculate from destination to source
+            node, _ = min(q.items(), key=lambda x: x[1].geteotx())  # Calculate from destination to source
             del q[node]
             for neighbor in self.graph.neighbors(node):
                 if neighbor not in q:
@@ -151,7 +167,7 @@ class Simulator:
         """Calculate the amount of tx credit the receiver gets."""
         l_n = {node: self.graph.nodes[node]['EOTX'] for node in self.graph.nodes}
         l_n = sorted(l_n.items(), key=lambda kv: kv[1])
-        l_i = {key[0]: 0 for key in l_n if key[0] != 'D'}
+        l_i = {nodename[0]: 0 for nodename in l_n if nodename[0] != 'D'}
         l_i['S'] = 1
         for idx, node in enumerate(list(l_i.keys())[::-1]):
             self.z[node] = l_i[node] / (1 - self.calce(node))
@@ -171,12 +187,12 @@ class Simulator:
         for node in self.nodes:
             if str(node) == 'D':
                 continue
-            value = 0
+            somevalue = 0
             for neighbor in self.graph.neighbors(str(node)):
                 if self.graph.nodes[neighbor]['EOTX'] > node.geteotx():
-                    value += self.z[neighbor] * self.graph.edges[str(node), neighbor]['weight']
+                    somevalue += self.z[neighbor] * self.graph.edges[str(node), neighbor]['weight']
             try:
-                node.setcredit(self.z[str(node)] / value)
+                node.setcredit(self.z[str(node)] / somevalue)
             except ZeroDivisionError:
                 pass
 
@@ -221,7 +237,7 @@ class Simulator:
         nx.draw(self.graph, pos=self.pos, with_labels=True, node_size=1500, node_color="skyblue", node_shape="o",
                 alpha=0.7, linewidths=4, font_size=25, font_color="red", font_weight="bold", width=2,
                 edge_color="grey")
-        labels = {key: round(value, 1) for key, value in nx.get_node_attributes(self.graph, 'EOTX').items()}
+        labels = {x: round(y, 1) for x, y in nx.get_node_attributes(self.graph, 'EOTX').items()}
         nx.draw_networkx_labels(self.graph, pos=self.pos, labels=labels)
         nx.draw_networkx_edge_labels(self.graph, pos=self.pos, edge_labels=nx.get_edge_attributes(self.graph, 'weight'))
         plt.savefig('graph.pdf')
@@ -230,10 +246,10 @@ class Simulator:
         """Highlight paths used in graph drawn in getready()."""
         self.drawunused()
         edgelist = []
-        for batch in self.path:
-            edgelist.extend(list(self.path[batch].keys()))
-            for edge in self.path[batch].keys():
-                edgelist.extend([edge for _ in self.path[batch][edge]])
+        for generation in self.path:
+            edgelist.extend(list(self.path[generation].keys()))
+            for edge in self.path[generation].keys():
+                edgelist.extend([edge for _ in self.path[generation][edge]])
         nx.draw_networkx_edges(self.graph, pos=self.pos, edgelist=edgelist, width=8, alpha=0.1,
                                edge_color='purple')
         plt.savefig('usedgraph.pdf')
@@ -251,11 +267,11 @@ class Simulator:
                 trash, amount = node.gettrash(self.timestamp)
                 trashdict[str(node)] = (trash, amount)
                 plt.bar(trash, amount, bottom=list(amts.values()), label=str(node), color=cmap(colorcounter), alpha=0.5)
-                for key, number in zip(trash, amount):
-                    if key in amts:
-                        amts[key] += number
+                for trashtime, number in zip(trash, amount):
+                    if trashtime in amts:
+                        amts[trashtime] += number
                     else:
-                        amts[key] = number
+                        amts[trashtime] = number
                 if len(amount):
                     maxval.append(max(amount))
                     sumval.append(sum(amount))
@@ -265,9 +281,9 @@ class Simulator:
         plt.xlabel('Timestamp')
         plt.ylim(ymin=0)
         plt.xlim(xmin=0)
-        plt.yticks(range(1, max(amts.values()) + 1, 1))
+        # plt.yticks(range(1, max(amts.values()) + 1, 1))
         plt.title('Amount of linear dependent packets for each node.')
-        plt.grid(True)
+        # plt.grid(True)
         plt.tight_layout()
         plt.savefig('lineardependent.pdf')
         plt.close()
@@ -303,10 +319,7 @@ class Simulator:
     def sendall(self):
         """All nodes send at same time."""
         for node in self.nodes:
-            if str(node) == 'S' and not node.getquiet():
-                self.broadcast(node)
-                self.airtime[str(node)].append(self.timestamp)
-            elif str(node) != 'D' and node.getcredit() > 0 and not node.getquiet():
+            if str(node) != 'D' and node.getcredit() > 0 and not node.getquiet():
                 self.broadcast(node)
                 node.reducecredit()
                 self.airtime[str(node)].append(self.timestamp)
@@ -318,10 +331,7 @@ class Simulator:
         maxsend = self.sendam if len(goodnodes) > self.sendam else len(goodnodes)
         for _ in range(maxsend):
             k = random.randint(0, len(goodnodes) - 1)
-            if str(goodnodes[k]) == 'S':
-                self.broadcast(goodnodes[k])
-                self.airtime[str(goodnodes[k])].append(self.timestamp)
-            elif str(goodnodes[k]) != 'D':
+            if str(goodnodes[k]) != 'D':
                 self.broadcast(goodnodes[k])
                 goodnodes[k].reducecredit()
                 self.airtime[str(goodnodes[k])].append(self.timestamp)
@@ -336,11 +346,27 @@ class Simulator:
                 self.sendsel()
             else:
                 self.sendall()
+            if self.multiprocessing:
+                processlist, queue = [], Queue()
+                for node in self.nodes:
+                    p = Process(target=receive, args=(queue, node, self.timestamp))
+                    processlist.append(p)
+                    p.start()
+                for process in processlist:
+                    process.join()
+                while not queue.empty():
+                    information = queue.get()
+                    for node in self.nodes:
+                        if str(node) == information[0]:
+                            node.listenstate(information[1:])
             for node in self.nodes:
-                if str(node) != 'S':
+                if not self.multiprocessing:
                     node.rcvpacket(self.timestamp)
                 if str(node) == 'D':
                     self.done = node.isdone()
+                if node.isdone() and str(node) not in self.donedict:
+                    logging.info('Node {} done at timestep {}'.format(str(node), self.timestamp))
+                    self.donedict[str(node)] = self.timestamp
                 self.ranklist[str(node)].append(node.getrank())
             self.timestamp += 1
             return self.done
@@ -354,17 +380,16 @@ if __name__ == '__main__':
         filename='main.log', level=llevel, format='%(asctime)s %(levelname)s\t %(message)s', filemode='w')
     args = parse_args()
     sim = Simulator(loglevel=llevel, jsonfile=args.json, coding=args.coding, fieldsize=args.fieldsize,
-                    sendall=args.sendam, own=args.own)
+                    sendall=args.sendam, own=args.own, multiprocessing=args.multiprocessing)
     starttime = time.time()
     for i in range(1):
         done = False
         while not done:
             done = sim.update()
         sim.newbatch()
-    print(time.time()-starttime)
+    logging.info('{:3.0f} Seconds needed.'.format(time.time() - starttime))
     sim.drawused()
     sim.drawtrash()
-    # logging.info('Packet arrived at destination. {}'.format(sim.getpath()))
     with open('path.json', 'w') as f:
         newdata = {}
         for batch in sim.getpath():
