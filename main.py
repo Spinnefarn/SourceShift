@@ -28,7 +28,7 @@ def parse_args():
     parser.add_argument('-f', '--fieldsize',
                         dest='fieldsize',
                         type=int,
-                        help='Fieldsize used for coding. 2 to the power of x',
+                        help='Fieldsize used for coding. 2 to the power of x, x∈(1, 4, 8, 16)',
                         default=1)
     parser.add_argument('-sa', '--sendamount',
                         dest='sendam',
@@ -44,6 +44,20 @@ def parse_args():
                         dest='multiprocessing',
                         type=bool,
                         help='Turn on multiprocessing, default on.',
+                        default=False)
+    parser.add_argument('-fe', '--failedge',
+                        dest='failedge',
+                        type=bool,
+                        help='Shut a random edge fail for higher batches.',
+                        default=False)
+    parser.add_argument('-fn', '--failnode',
+                        dest='failnode',
+                        type=bool,
+                        help='Should a random node fail for higher batches.',
+                        default=False)
+    parser.add_argument('-fa', '--failall',
+                        dest='failall',
+                        help='Everything should fail(just one by time.',
                         default=False)
     return parser.parse_args()
 
@@ -67,15 +81,20 @@ class Simulator:
     """Round based simulator to simulate traffic in meshed network."""
 
     def __init__(self, loglevel=logging.INFO, jsonfile=None, coding=None, fieldsize=2, sendall=0, own=True,
-                 multiprocessing=True):
+                 multiprocessing=True, edgefail=False, nodefail=False, allfail=False):
         self.airtime = {}
+        self.edgefail = edgefail
+        self.nodefail = nodefail
+        self.allfail = allfail
         self.config = {}
         self.graph = None
+        self.prevfail = None
         self.nodes = []
         self.ranklist = {}
         self.z = {}
         self.batch = 0
         self.sendam = sendall
+        self.batchhist = []
         self.coding = coding
         self.fieldsize = fieldsize
         self.pos = None
@@ -196,18 +215,36 @@ class Simulator:
             except ZeroDivisionError:
                 pass
 
+    def checkduration(self):
+        """Calculate duration since batch was started. To know there is no connection SD."""
+        if len(self.batchhist) == 0:
+            return True
+        elif len(self.batchhist) == 1:
+            if self.timestamp - self.batchhist[0] > 10*self.batchhist[0]:
+                logging.warning('Stopped batch after {} timesteps'.format(self.timestamp - self.batchhist[0]))
+                return False
+            else:
+                return True
+        else:
+            if self.timestamp - self.batchhist[-1] > 10*(self.batchhist[-1] - self.batchhist[-2]):
+                logging.warning('Stopped batch after {} timesteps'.format(self.timestamp - self.batchhist[-1]))
+                return False
+            else:
+                return True
+
     def checkstate(self):
         """Node should stop sending if all neighbors have complete information."""
         for node in self.nodes:
-            if node.getquiet():             # Do not check nodes twice
+            if node.getquiet():  # Do not check nodes twice
                 continue
-            allcomplete = node.isdone()     # Just check if node itself is done
+            allcomplete = node.isdone()  # Just check if node itself is done
             for neighbor in self.graph.neighbors(str(node)):
                 if not allcomplete:
                     break
                 for neighbornode in self.nodes:
                     if str(neighbornode) == neighbor:
-                        allcomplete = neighbornode.isdone()    # Every neighbor closer to destination has to be done
+                        allcomplete = (node.getbatch() == neighbornode.getbatch() and neighbornode.isdone())
+                        # Every neighbor closer to destination has to be done at current batch
                         break
             if allcomplete:
                 node.stopsending()
@@ -258,7 +295,8 @@ class Simulator:
     def drawtrash(self, kind=None):
         """Draw linear dependent packets over time and nodes"""
         maxval, sumval = [], []
-        plt.figure(figsize=(10, 5))
+        width = self.batch * 2.5
+        plt.figure(figsize=(width, 5))
         trashdict = {}
         amts = {ts: 0 for ts in range(self.timestamp)}
         cmap, colorcounter = plt.get_cmap('tab20'), 0
@@ -293,7 +331,56 @@ class Simulator:
         else:
             plt.savefig('lineardependent.pdf')
         plt.close()
-        logging.info('{} linear dependent packets arrived.'.format(sum(sumval)))
+        if kind == 'real':
+            logging.info('{} linear dependent packets arrived from parents.'.format(sum(sumval)))
+        else:
+            logging.info('{} linear dependent packets arrived by overhearing children.'.format(sum(sumval)))
+
+    def failall(self):
+        """Kill one of all."""
+        if self.prevfail is None:
+            self.failnode(0)
+        elif isinstance(self.prevfail, tuple):
+            liste = list(self.graph.edges)
+            idx = liste.index(self.prevfail[0])
+            if idx + 1 < len(liste):
+                self.failedge(idx + 1)
+            else:
+                return False
+        else:
+            if self.prevfail + 1 < len(self.nodes):
+                self.failnode(self.prevfail + 1)
+            else:
+                self.failedge(0)
+        return True
+
+    def failnode(self, nodenum=None):
+        """Kill a random node."""
+        if self.prevfail is not None:
+            if isinstance(self.prevfail, tuple):
+                self.graph.edges[self.prevfail[0]]['weight'] = self.prevfail[1]
+            else:
+                self.nodes[self.prevfail].heal()
+        if nodenum is None:
+            nodenum = random.randint(0, len(self.nodes) - 1)
+        self.nodes[nodenum].fail()
+        self.prevfail = nodenum
+        logging.info('Node {} disabled'.format(str(self.nodes[nodenum])))
+
+    def failedge(self, edgenum=None):
+        """Kill a random edge."""
+        if self.prevfail is not None:
+            if isinstance(self.prevfail, tuple):
+                self.graph.edges[self.prevfail[0]]['weight'] = self.prevfail[1]
+            else:
+                # noinspection PyTypeChecker
+                self.nodes[self.prevfail].heal()
+        if edgenum is None:
+            edgenum = random.randint(0, len(self.graph.edges) - 1)
+        nodes = list(self.graph.edges)[edgenum]
+        self.prevfail = (nodes, self.graph.edges[nodes]['weight'])
+        self.graph.edges[nodes]['weight'] = 0
+        logging.info('Edge {} disabled'.format(str(nodes)))
 
     def getgraph(self):
         """Return graph."""
@@ -318,22 +405,32 @@ class Simulator:
             logging.warning('Old batch is not done yet')
         self.batch += 1
         self.done = False
+        self.donedict = {}
         for node in self.nodes:
             if str(node) in 'SD':
                 node.newbatch()
+        if self.nodefail:
+            self.failnode()
+        if self.edgefail:
+            self.failedge()
+        if self.allfail:
+            if not self.failall():      # Just false if last failure was tested
+                return True         # Return done
+        self.batchhist.append(self.timestamp)
 
     def sendall(self):
         """All nodes send at same time."""
         for node in self.nodes:
-            if str(node) != 'D' and node.getcredit() > 0 and not node.getquiet():
+            if str(node) != 'D' and node.getcredit() > 0 and not node.getquiet() and node.gethealth():
                 self.broadcast(node)
                 node.reducecredit()
                 self.airtime[str(node)].append(self.timestamp)
 
     def sendsel(self):
         """Just the selected amount of nodes send at one timeslot."""
-        goodnodes = [           # Goodnode are nodes which are allowed to send
-            node for node in self.nodes if ((node.getcredit() > 0) or (str(node) == 'S')) and not node.getquiet()]
+        goodnodes = [  # Goodnode are nodes which are allowed to send
+            node for node in self.nodes if ((node.getcredit() > 0) or (str(node) == 'S')) and not node.getquiet() and
+            node.gethealth()]
         maxsend = self.sendam if len(goodnodes) > self.sendam else len(goodnodes)
         for _ in range(maxsend):
             k = random.randint(0, len(goodnodes) - 1)
@@ -370,11 +467,13 @@ class Simulator:
                     node.rcvpacket(self.timestamp)
                 if str(node) == 'D':
                     self.done = node.isdone()
-                if node.isdone() and str(node) not in self.donedict:
+                if node.isdone() and str(node) not in self.donedict and self.batch == node.getbatch():
                     logging.info('Node {} done at timestep {}'.format(str(node), self.timestamp))
                     self.donedict[str(node)] = self.timestamp
                 self.ranklist[str(node)].append(node.getrank())
             self.timestamp += 1
+            if not self.checkduration():
+                return True
             return self.done
         else:
             return True
@@ -386,14 +485,18 @@ if __name__ == '__main__':
         filename='main.log', level=llevel, format='%(asctime)s %(levelname)s\t %(message)s', filemode='w')
     args = parse_args()
     sim = Simulator(loglevel=llevel, jsonfile=args.json, coding=args.coding, fieldsize=args.fieldsize,
-                    sendall=args.sendam, own=args.own, multiprocessing=args.multiprocessing)
+                    sendall=args.sendam, own=args.own, multiprocessing=args.multiprocessing, edgefail=args.failedge,
+                    nodefail=args.failnode, allfail=args.failall)
     starttime = time.time()
-    for i in range(1):
+    complete = False
+    while not complete:
+        beginbatch = time.time()
         done = False
         while not done:
             done = sim.update()
-        sim.newbatch()
-    logging.info('{:3.0f} Seconds needed.'.format(time.time() - starttime))
+        logging.info('{:3.0f} Seconds needed'.format(time.time() - beginbatch))
+        complete = sim.newbatch()
+    logging.info('{:3.0f} Seconds needed in total.'.format(time.time() - starttime))
     sim.drawused()
     sim.drawtrash()
     sim.drawtrash('real')

@@ -38,7 +38,7 @@ def calcrank(matrix, field):
         return 0
     elif len(matrix) == 1:
         return 1
-    for i in range(len(matrix[:, 0]), 0, -1):
+    for i in range(len(matrix), 0, -1):
         for j in range(2 ** len(matrix[0])):
             binj = [int(x) for x in bin(j)[2:]]
             if sum(binj) == i:
@@ -82,6 +82,7 @@ class Node:
         self.credit = 0.
         self.complete = (name == 'S')
         self.trash = []
+        self.working = True
         self.realtrash = []
         self.quiet = False
         self.history = []
@@ -112,10 +113,9 @@ class Node:
             logging.error('All neighbors are complete but not this one? '.format(self.name))
         self.creditcounter = float('inf')
 
-    def isdone(self):
-        """Return True if able to decode."""
-        self.complete = self.coding == self.rank
-        return self.complete
+    def fail(self):
+        """Set nodes state to fail."""
+        self.working = False
 
     def getbatch(self):
         """Return current batch."""
@@ -152,7 +152,7 @@ class Node:
                     summe = 0
                     for j in modbuffer[:, i]:
                         summe = self.field.add(int(summe), int(j))
-                    recoded.append(summe)           # Recode to get new packet
+                    recoded.append(summe)  # Recode to get new packet
             self.sendhistory.append(recoded)
             return np.array(recoded)
         else:
@@ -165,6 +165,10 @@ class Node:
     def geteotx(self):
         """Get eotx."""
         return self.eotx
+
+    def gethealth(self):
+        """Get state working or not."""
+        return self.working
 
     def getname(self):
         """Return name of the node."""
@@ -186,16 +190,26 @@ class Node:
         """Return trash."""
         return makenice(self.trash, maxts)
 
+    def heal(self):
+        """Start working or continue if you do already."""
+        self.working = True
+
+    def isdone(self):
+        """Return True if able to decode."""
+        self.complete = self.coding == self.rank
+        return self.complete
+
     def listenstate(self, information):
         """Set state someone told."""
         self.buffer = information[0].copy()
         self.incbuffer = []
         self.rank = information[1]
         self.trash = information[2].copy()
-        if self.batch < information[3]:
-            self.batch = information[3]
+        self.realtrash = information[3].copy()
+        if self.batch < information[4]:
+            self.batch = information[4]
             self.quiet = False
-        self.creditcounter = information[4]
+        self.creditcounter = information[5]
         self.complete = self.coding == self.rank
 
     def newbatch(self):
@@ -203,6 +217,7 @@ class Node:
         self.batch += 1
         self.buffer = np.array([], dtype=int)
         self.complete = self.name == 'S'
+        self.rank = self.coding if self.name == 'S' else 0
         self.quiet = False
 
     def rcvpacket(self, timestamp):
@@ -210,6 +225,8 @@ class Node:
         for batch, coding, preveotx, special in self.incbuffer:
             if self.name == 'S':  # Cant get new information if you're source
                 break
+            elif batch < self.batch:
+                continue
             elif batch > self.batch or not len(self.buffer):  # Delete it if you're working on deprecated batch
                 self.buffer = np.array([coding], dtype=int)
                 self.batch = batch
@@ -262,4 +279,5 @@ class Node:
 
     def tellstate(self):
         """Tell current state."""
-        return self.name, self.buffer.copy(), self.rank, self.trash.copy(), self.batch, self.creditcounter
+        return self.name, self.buffer.copy(), self.rank, self.trash.copy(), self.realtrash.copy(), \
+            self.batch, self.creditcounter
