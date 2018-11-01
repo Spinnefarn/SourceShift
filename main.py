@@ -89,6 +89,7 @@ class Simulator:
         self.config = {}
         self.graph = None
         self.prevfail = None
+        self.failhist = {}
         self.nodes = []
         self.ranklist = {}
         self.z = {}
@@ -220,13 +221,13 @@ class Simulator:
         if len(self.batchhist) == 0:
             return True
         elif len(self.batchhist) == 1:
-            if self.timestamp - self.batchhist[0] > 10*self.batchhist[0]:
+            if self.timestamp - self.batchhist[0] > 20*self.batchhist[0]:
                 logging.warning('Stopped batch after {} timesteps'.format(self.timestamp - self.batchhist[0]))
                 return False
             else:
                 return True
         else:
-            if self.timestamp - self.batchhist[-1] > 10*(self.batchhist[-1] - self.batchhist[-2]):
+            if self.timestamp - self.batchhist[-1] > 20*self.batchhist[0]:
                 logging.warning('Stopped batch after {} timesteps'.format(self.timestamp - self.batchhist[-1]))
                 return False
             else:
@@ -267,6 +268,24 @@ class Simulator:
         for node in self.nodes:
             self.airtime[str(node)] = []
             self.ranklist[str(node)] = []
+
+    def drawfailes(self, failhist=None):
+        """Draw batch duration over failed nodes/edges."""
+        plt.figure(figsize=(10, 10))
+        if failhist is not None:
+            plt.bar(range(len(failhist)), failhist.values(), label='MORE')
+            plt.bar(range(len(self.failhist)), self.failhist.values(), bottom=list(failhist.values()), label='MOREL')
+        else:
+            plt.bar(range(len(self.failhist)), self.failhist.values(), label='MOREL')
+        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        plt.ylabel('Needed airtime in timeslots')
+        plt.xlabel('Failure')
+        plt.title('Needed airtime over failures for different protocols')
+        plt.xticks(range(len(self.failhist)), labels=self.failhist.keys(), rotation=90)
+        plt.tight_layout()
+        plt.savefig('airtimefail.pdf')
+        plt.close()
+        return self.failhist
 
     def drawunused(self):
         """Draw initial graph."""
@@ -406,6 +425,15 @@ class Simulator:
         self.batch += 1
         self.done = False
         self.donedict = {}
+        prevfail = None
+        if isinstance(self.prevfail, int):
+            prevfail = str(self.nodes[self.prevfail])
+        elif isinstance(self.prevfail, tuple):
+            prevfail = self.prevfail[0]
+        if len(self.batchhist):
+            self.failhist[prevfail] = self.timestamp - self.batchhist[-1]
+        else:
+            self.failhist['None'] = self.timestamp
         for node in self.nodes:
             if str(node) in 'SD':
                 node.newbatch()
@@ -484,22 +512,28 @@ if __name__ == '__main__':
     logging.basicConfig(
         filename='main.log', level=llevel, format='%(asctime)s %(levelname)s\t %(message)s', filemode='w')
     args = parse_args()
-    sim = Simulator(loglevel=llevel, jsonfile=args.json, coding=args.coding, fieldsize=args.fieldsize,
-                    sendall=args.sendam, own=args.own, multiprocessing=args.multiprocessing, edgefail=args.failedge,
-                    nodefail=args.failnode, allfail=args.failall)
-    starttime = time.time()
-    complete = False
-    while not complete:
-        beginbatch = time.time()
-        done = False
-        while not done:
-            done = sim.update()
-        logging.info('{:3.0f} Seconds needed'.format(time.time() - beginbatch))
-        complete = sim.newbatch()
-    logging.info('{:3.0f} Seconds needed in total.'.format(time.time() - starttime))
-    sim.drawused()
-    sim.drawtrash()
-    sim.drawtrash('real')
+    failes = None
+    for ownbool in [False, True]:
+        sim = Simulator(loglevel=llevel, jsonfile=args.json, coding=args.coding, fieldsize=args.fieldsize,
+                        sendall=args.sendam, own=ownbool, multiprocessing=args.multiprocessing, edgefail=args.failedge,
+                        nodefail=args.failnode, allfail=args.failall)
+        starttime = time.time()
+        complete = False
+        while not complete:
+            beginbatch = time.time()
+            done = False
+            while not done:
+                done = sim.update()
+            logging.info('{:3.0f} Seconds needed'.format(time.time() - beginbatch))
+            complete = sim.newbatch()
+        logging.info('{:3.0f} Seconds needed in total.'.format(time.time() - starttime))
+        # sim.drawused()
+        # sim.drawtrash()
+        # sim.drawtrash('real')
+        if failes is None:
+            failes = sim.drawfailes()
+        else:
+            sim.drawfailes(failes)
     with open('path.json', 'w') as f:
         newdata = {}
         for batch in sim.getpath():
