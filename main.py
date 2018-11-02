@@ -9,6 +9,7 @@ import networkx as nx
 import matplotlib.pylab as plt
 import random
 import time
+import os
 from multiprocessing import Process, Queue
 
 
@@ -19,7 +20,13 @@ def parse_args():
                         dest='json',
                         type=str,
                         help='should contain network configuration',
-                        default='graph.json')
+                        default=None)
+    parser.add_argument('-n', '--randomnodes',
+                        dest='amount',
+                        type=tuple,
+                        nargs=2,
+                        help='In case of no json given how many random nodes should be created and max dist for links.',
+                        default=(20, 0.5))
     parser.add_argument('-c', '--coding',
                         dest='coding',
                         type=int,
@@ -64,10 +71,11 @@ def parse_args():
 
 def readconf(jsonfile):
     """Read configuration file."""
-    with open(jsonfile) as file:
-        config = json.loads(file.read())
-    pos = {node: [config['nodes'][node]['x'], config['nodes'][node]['y']] for node in config['nodes']}
-    return config['links'], pos
+    if jsonfile is not None and os.path.exists(jsonfile):
+        with open(jsonfile) as file:
+            config = json.loads(file.read())
+        pos = {node: [config['nodes'][node]['x'], config['nodes'][node]['y']] for node in config['nodes']}
+        return config['links'], pos
 
 
 def receive(queue, node, timestamp):
@@ -81,7 +89,7 @@ class Simulator:
     """Round based simulator to simulate traffic in meshed network."""
 
     def __init__(self, loglevel=logging.INFO, jsonfile=None, coding=None, fieldsize=2, sendall=0, own=True,
-                 multiprocessing=True, edgefail=False, nodefail=False, allfail=False):
+                 multiprocessing=True, edgefail=False, nodefail=False, allfail=False, randcof=(20, 0.5)):
         self.airtime = {}
         self.edgefail = edgefail
         self.nodefail = nodefail
@@ -101,7 +109,7 @@ class Simulator:
         self.pos = None
         import logging
         logging.basicConfig(filename='simulator.log', level=loglevel, format='%(asctime)s %(message)s', filemode='w')
-        self.getready(jsonfile)
+        self.getready(jsonfile=jsonfile, randcof=randcof)
         self.done = False
         self.path = {}
         self.timestamp = 0
@@ -221,13 +229,13 @@ class Simulator:
         if len(self.batchhist) == 0:
             return True
         elif len(self.batchhist) == 1:
-            if self.timestamp - self.batchhist[0] > 20*self.batchhist[0]:
+            if self.timestamp - self.batchhist[0] > 20 * self.batchhist[0]:
                 logging.warning('Stopped batch after {} timesteps'.format(self.timestamp - self.batchhist[0]))
                 return False
             else:
                 return True
         else:
-            if self.timestamp - self.batchhist[-1] > 20*self.batchhist[0]:
+            if self.timestamp - self.batchhist[-1] > 20 * self.batchhist[0]:
                 logging.warning('Stopped batch after {} timesteps'.format(self.timestamp - self.batchhist[-1]))
                 return False
             else:
@@ -255,14 +263,28 @@ class Simulator:
                             neighbornode.becomesource()
                             break
 
-    def createnetwork(self, config):
+    def createnetwork(self, config=None, randcof=(20, 0.5)):
         """Create network using networkx library based on configuration given as dict."""
-        self.pos = config[1]
-        configlist = []
-        for edge in config[0]:
-            configlist.append((edge['nodes'][0], edge['nodes'][1], edge['loss']))
-        self.graph = nx.Graph()
-        self.graph.add_weighted_edges_from(configlist)
+        if config is None:
+            # graph = nx.random_geometric_graph(randcof[0], randcof[1])
+            graph = nx.barabasi_albert_graph(randcof[0], 2)
+            mapping = dict(zip(graph.nodes(), "SDABCEFGHIJKLMNOPQRTUVWXYZ"[:randcof[0]]))
+            self.graph = nx.relabel_nodes(graph, mapping)
+            self.pos = nx.kamada_kawai_layout(self.graph)
+            for edge in list(self.graph.edges):
+                self.graph.edges[edge]['weight'] = round(random.uniform(0.05, 0.95), 1)
+            information = {'nodes': {node: {'x': position[0], 'y': position[1]} for node, position in self.pos.items()},
+                           'links': [{'nodes': edge, 'loss': self.graph.edges[edge]['weight']}
+                                     for edge in list(self.graph.edges)]}
+            with open('usedgraph.json', 'w') as file:
+                json.dump(information, file, indent=4, sort_keys=True)
+        else:
+            self.pos = config[1]
+            configlist = []
+            for edge in config[0]:
+                configlist.append((edge['nodes'][0], edge['nodes'][1], edge['loss']))
+            self.graph = nx.Graph()
+            self.graph.add_weighted_edges_from(configlist)
         self.nodes = [components.Node(name=name, coding=self.coding, fieldsize=self.fieldsize)
                       for name in self.graph.nodes]
         for node in self.nodes:
@@ -339,8 +361,8 @@ class Simulator:
         plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         plt.ylabel('Amount of linear depended packets')
         plt.xlabel('Timestamp')
-        plt.ylim(ymin=0)
-        plt.xlim(xmin=0)
+        plt.ylim(bottom=0)
+        plt.xlim(left=0)
         # plt.yticks(range(1, max(amts.values()) + 1, 1))
         plt.title('Amount of linear dependent packets for each node.')
         # plt.grid(True)
@@ -405,9 +427,9 @@ class Simulator:
         """Return graph."""
         return self.graph
 
-    def getready(self, jsonfile):
+    def getready(self, jsonfile=None, randcof=(20, 0.5)):
         """Do the basic stuff to get ready."""
-        self.createnetwork(readconf(jsonfile))
+        self.createnetwork(config=readconf(jsonfile), randcof=randcof)
         self.calceotx()
         self.calc_tx_credit()
         self.drawunused()
@@ -437,13 +459,15 @@ class Simulator:
         for node in self.nodes:
             if str(node) in 'SD':
                 node.newbatch()
-        if self.nodefail:
-            self.failnode()
-        if self.edgefail:
-            self.failedge()
         if self.allfail:
-            if not self.failall():      # Just false if last failure was tested
-                return True         # Return done
+            if not self.failall():  # Just false if last failure was tested
+                return True  # Return done
+        elif self.nodefail:
+            self.failnode()
+        elif self.edgefail:
+            self.failedge()
+        else:
+            return True
         self.batchhist.append(self.timestamp)
 
     def sendall(self):
@@ -513,10 +537,19 @@ if __name__ == '__main__':
         filename='main.log', level=llevel, format='%(asctime)s %(levelname)s\t %(message)s', filemode='w')
     args = parse_args()
     failes = None
+    generated = False
     for ownbool in [False, True]:
-        sim = Simulator(loglevel=llevel, jsonfile=args.json, coding=args.coding, fieldsize=args.fieldsize,
-                        sendall=args.sendam, own=ownbool, multiprocessing=args.multiprocessing, edgefail=args.failedge,
-                        nodefail=args.failnode, allfail=args.failall)
+        if not generated:
+            sim = Simulator(loglevel=llevel, jsonfile=args.json, coding=args.coding, fieldsize=args.fieldsize,
+                            sendall=args.sendam, own=ownbool, multiprocessing=args.multiprocessing,
+                            edgefail=args.failedge,
+                            nodefail=args.failnode, allfail=args.failall, randcof=args.amount)
+        else:
+            sim = Simulator(loglevel=llevel, jsonfile='usedgraph.json', coding=args.coding, fieldsize=args.fieldsize,
+                            sendall=args.sendam, own=ownbool, multiprocessing=args.multiprocessing,
+                            edgefail=args.failedge,
+                            nodefail=args.failnode, allfail=args.failall, randcof=args.amount)
+            pass
         starttime = time.time()
         complete = False
         while not complete:
@@ -528,12 +561,13 @@ if __name__ == '__main__':
             complete = sim.newbatch()
         logging.info('{:3.0f} Seconds needed in total.'.format(time.time() - starttime))
         # sim.drawused()
-        # sim.drawtrash()
-        # sim.drawtrash('real')
+        sim.drawtrash()
+        sim.drawtrash('real')
         if failes is None:
             failes = sim.drawfailes()
         else:
             sim.drawfailes(failes)
+        generated = True
     with open('path.json', 'w') as f:
         newdata = {}
         for batch in sim.getpath():
