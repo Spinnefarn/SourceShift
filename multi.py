@@ -100,6 +100,8 @@ def runsim(config):
         complete = sim.newbatch()
     logging.info('{:3.0f} Seconds needed in total.'.format(time.time() - starttime))
     sim.writelogs()
+    with open('{}/config.json'.format(config['folder']), 'w') as file:
+        json.dump(config, file)
 
 
 def cleanfolder(folder):
@@ -127,8 +129,9 @@ if __name__ == '__main__':
         filename='main.log', level=llevel, format='%(asctime)s %(levelname)s\t %(message)s',
         filemode='w')
     logging.info('Randomseed = ' + str(randomnumber))
+    folderlist = ['test4', 'test5', 'test6', 'test7']
     processes = []
-    for element in ['test4', 'test5', 'test6', 'test7']:
+    for element in folderlist:
         cleanfolder(element)
         confdict['folder'] = element
         confdict['own'] = not confdict['own']

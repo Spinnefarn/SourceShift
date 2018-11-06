@@ -562,7 +562,7 @@ class Simulator:
             json.dump(path, file)
         with open('{}/ranklist.json'.format(self.folder), 'w') as file:
             json.dump(self.ranklist, file)
-        for kind in [None, 'real']:
+        for kind in ['overhearing', 'real']:
             trashdict = {}
             for node in self.nodes:
                 if str(node) != 'S':
@@ -573,6 +573,14 @@ class Simulator:
                     trashdict[str(node)] = (trash, amount)
             with open('{}/{}trash.json'.format(self.folder, kind), 'w') as file:
                 json.dump(trashdict, file)
+        with open('{}/failhist.json'.format(self.folder), 'w') as file:
+            failhist = {}
+            for key, value in self.failhist.items():
+                if isinstance(key, tuple):
+                    failhist[key[0] + key[1]] = value
+                else:
+                    failhist[key] = value
+            json.dump(failhist, file)
 
 
 if __name__ == '__main__':
