@@ -202,19 +202,6 @@ class Node:
         self.complete = self.coding == self.rank
         return self.complete
 
-    def listenstate(self, information):
-        """Set state someone told."""
-        self.buffer = information[0].copy()
-        self.incbuffer = []
-        self.rank = information[1]
-        self.trash = information[2].copy()
-        self.realtrash = information[3].copy()
-        if self.batch < information[4]:
-            self.batch = information[4]
-            self.quiet = False
-        self.creditcounter = information[5]
-        self.complete = self.coding == self.rank
-
     def newbatch(self):
         """Make destination awaiting new batch."""
         self.batch += 1
@@ -225,7 +212,6 @@ class Node:
 
     def rcvpacket(self, timestamp):
         """Add received Packet to buffer. Do this at end of timeslot."""
-        logging.debug('Start at {}'.format(self.name))
         while len(self.incbuffer):
             batch, coding, preveotx, special = self.incbuffer.pop()
             if self.name == 'S':  # Cant get new information if you're source
@@ -245,10 +231,7 @@ class Node:
                 if self.complete:        # Packet can just be linear dependent if rank is full
                     newrank = self.rank
                 else:
-                    logging.debug('Rank calculation at {}'.format(self.name))
-                    # logging.debug(str(np.vstack([self.buffer, coding])))
                     newrank = calcrank(np.vstack([self.buffer, coding]), self.field)
-                    logging.debug('Calculated rank for {} is {}'.format(self.name, newrank))
                 if self.rank < newrank:
                     self.buffer = np.vstack([self.buffer, coding])
                     self.rank = newrank
@@ -261,7 +244,6 @@ class Node:
                 self.creditcounter += 1
             if preveotx > self.eotx:
                 self.creditcounter += self.credit
-        logging.debug('Rcv done at {}'.format(self.name))
 
     def reducecredit(self):
         """Reduce tx credit."""
@@ -278,9 +260,3 @@ class Node:
     def stopsending(self):
         """Stop sending if every neighbor is complete."""
         self.quiet = True
-
-    def tellstate(self):
-        """Tell current state."""
-        logging.debug('Tellstate at {}'.format(self.name))
-        return self.name, self.buffer.copy(), self.rank, self.trash.copy(), self.realtrash.copy(), \
-            self.batch, self.creditcounter

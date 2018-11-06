@@ -7,6 +7,8 @@ import time
 import os
 from Simulator import Simulator
 import random
+import logging
+from multiprocessing import Process
 
 
 def parse_args():
@@ -80,64 +82,60 @@ def parse_args():
     return parser.parse_args()
 
 
+def runsim(config):
+    """Run simulation based on arguments."""
+    sim = Simulator(jsonfile=config['json'], coding=config['coding'], fieldsize=config['fieldsize'],
+                    sendall=config['sendam'], own=config['own'], edgefail=config['failedge'],
+                    nodefail=config['failnode'], allfail=config['failall'], randcof=config['randconf'],
+                    folder=config['folder'], maxduration=config['maxduration'], randomseed=config['random'])
+    starttime = time.time()
+    complete = False
+    while not complete:
+        beginbatch = time.time()
+        done = False
+        while not done:
+            done = sim.update()
+        logging.info('{:3.0f} Seconds needed'.format(time.time() - beginbatch))
+        sim.drawused()
+        complete = sim.newbatch()
+    logging.info('{:3.0f} Seconds needed in total.'.format(time.time() - starttime))
+    sim.writelogs()
+
+
+def cleanfolder(folder):
+    """Make sure folder exist and is empty."""
+    if not os.path.exists(folder):
+        os.makedirs(folder)
+    elif folder != '.':
+        filelist = [file for file in os.listdir(folder)]
+        for file in filelist:
+            os.remove(os.path.join(folder, file))
+
+
 if __name__ == '__main__':
     args = parse_args()
     if args.random is None:
-        randomnumber = random.randint(0, 10000)
+        randomnumber = random.randint(0, 1000000)
     else:
         randomnumber = args.random
     random.seed(randomnumber)
-    if not os.path.exists(args.folder):
-        os.makedirs(args.folder)
-    elif args.folder != '.':
-        filelist = [file for file in os.listdir(args.folder)]
-        for file in filelist:
-            os.remove(os.path.join(args.folder, file))
-    import logging
+    confdict = {'json': args.json, 'randconf': args.amount, 'coding': args.coding, 'fieldsize': args.fieldsize,
+                'sendam': args.sendam, 'own': args.own, 'failedge': args.failedge, 'failnode': args.failnode,
+                'failall': args.failall, 'folder': args.folder, 'maxduration': args.maxduration, 'random': randomnumber}
     llevel = logging.DEBUG
     logging.basicConfig(
-        filename='{}/main.log'.format(args.folder), level=llevel, format='%(asctime)s %(levelname)s\t %(message)s',
+        filename='main.log', level=llevel, format='%(asctime)s %(levelname)s\t %(message)s',
         filemode='w')
     logging.info('Randomseed = ' + str(randomnumber))
-    failes = None
-    generated = False
-    needed = 0
-    for ownbool in [False, True]:
-        if not generated or args.json is not None:
-            sim = Simulator(jsonfile=args.json, coding=args.coding, fieldsize=args.fieldsize,
-                            sendall=args.sendam, own=ownbool, edgefail=args.failedge, nodefail=args.failnode,
-                            allfail=args.failall, randcof=args.amount, folder=args.folder,
-                            maxduration=args.maxduration if not needed else 20 * needed, randomseed=randomnumber)
-        else:
-            sim = Simulator(jsonfile='{}/usedgraph.json'.format(args.folder), coding=args.coding,
-                            fieldsize=args.fieldsize, sendall=args.sendam, own=ownbool, edgefail=args.failedge,
-                            nodefail=args.failnode, allfail=args.failall, randcof=args.amount, folder=args.folder,
-                            maxduration=args.maxduration if not needed else 20 * needed, randomseed=randomnumber)
-            pass
-        starttime = time.time()
-        complete = False
-        while not complete:
-            beginbatch = time.time()
-            done = False
-            while not done:
-                done = sim.update()
-            logging.info('{:3.0f} Seconds needed'.format(time.time() - beginbatch))
-            sim.drawused()
-            complete = sim.newbatch()
-        logging.info('{:3.0f} Seconds needed in total.'.format(time.time() - starttime))
-        needed = needed if needed else sim.getneeded()
-        # sim.drawtrash()
-        # sim.drawtrash('real')
-        if failes is None:
-            failes = sim.drawfailes()
-        else:
-            sim.drawfailes(failes)
-        generated = True
-    with open('{}/path.json'.format(args.folder), 'w') as f:
-        newdata = {}
-        for batch in sim.getpath():
-            newdata[batch] = {}
-            for key, value in sim.getpath()[batch].items():
-                newdata[batch][str(key)] = value
-        json.dump(newdata, f)
-    logging.info('Total used airtime {}'.format(sim.calcairtime()))
+    processes = []
+    for element in ['test4', 'test5', 'test6', 'test7']:
+        cleanfolder(element)
+        confdict['folder'] = element
+        confdict['own'] = not confdict['own']
+        p = Process(target=runsim, args=(confdict,))
+        p.start()
+        logging.info('Startet simulation process with {}'.format(args))
+        processes.append(p)
+    for process in processes:
+        process.join()
+    logging.info('Everything done')

@@ -10,7 +10,6 @@ import random
 import time
 import os
 import logging
-from multiprocessing import Process, Queue
 
 
 def parse_args():
@@ -46,11 +45,6 @@ def parse_args():
                         dest='own',
                         type=bool,
                         help='Use own approach or MORE.',
-                        default=False)
-    parser.add_argument('-m', '--multiprocessing',
-                        dest='multiprocessing',
-                        type=bool,
-                        help='Turn on multiprocessing, default on.',
                         default=False)
     parser.add_argument('-fe', '--failedge',
                         dest='failedge',
@@ -88,18 +82,10 @@ def readconf(jsonfile):
         return config['links'], pos
 
 
-def receive(queue, node, timestamp):
-    """Receive the packets at node and do some logging."""
-    if str(node) != 'S':
-        node.rcvpacket(timestamp)
-    queue.put(node.tellstate())
-
-
 class Simulator:
     """Round based simulator to simulate traffic in meshed network."""
-    def __init__(self, jsonfile=None, coding=None, fieldsize=2, sendall=0, own=True,
-                 multiprocessing=True, edgefail=False, nodefail=False, allfail=False, randcof=(10, 0.5), folder='.',
-                 maxduration=0, randomseed=None):
+    def __init__(self, jsonfile=None, coding=None, fieldsize=2, sendall=0, own=True, edgefail=False, nodefail=False,
+                 allfail=False, randcof=(10, 0.5), folder='.', maxduration=0, randomseed=None):
         self.airtime = {}
         self.edgefail = edgefail
         self.nodefail = nodefail
@@ -126,7 +112,6 @@ class Simulator:
         self.timestamp = 0
         self.own = own
         self.donedict = {}
-        self.multiprocessing = multiprocessing
 
     def broadcast(self, node):
         """Broadcast given packet to all neighbors."""
@@ -549,22 +534,8 @@ class Simulator:
                 self.sendsel()
             else:
                 self.sendall()
-            if self.multiprocessing:
-                processlist, queue = [], Queue()
-                for node in self.nodes:
-                    p = Process(target=receive, args=(queue, node, self.timestamp))
-                    processlist.append(p)
-                    p.start()
-                for process in processlist:
-                    process.join()
-                while not queue.empty():
-                    information = queue.get()
-                    for node in self.nodes:
-                        if str(node) == information[0]:
-                            node.listenstate(information[1:])
             for node in self.nodes:
-                if not self.multiprocessing:
-                    node.rcvpacket(self.timestamp)
+                node.rcvpacket(self.timestamp)
                 if str(node) == 'D':
                     self.done = node.isdone()
                 if node.isdone() and str(node) not in self.donedict and self.batch == node.getbatch():
@@ -578,6 +549,31 @@ class Simulator:
         else:
             return True
 
+    def writelogs(self):
+        """Write everything down which could be usefull."""
+        with open('{}/airtime.json'.format(self.folder), 'w') as file:
+            json.dump(self.airtime, file)
+        with open('{}/path.json'.format(self.folder), 'w') as file:
+            path = {}
+            for generation in self.path:
+                path[generation] = {}
+                for link in self.path[generation]:
+                    path[generation][link[0] + link[1]] = self.path[generation][link]
+            json.dump(path, file)
+        with open('{}/ranklist.json'.format(self.folder), 'w') as file:
+            json.dump(self.ranklist, file)
+        for kind in [None, 'real']:
+            trashdict = {}
+            for node in self.nodes:
+                if str(node) != 'S':
+                    if kind == 'real':
+                        trash, amount = node.getrealtrash(self.timestamp)
+                    else:
+                        trash, amount = node.gettrash(self.timestamp)
+                    trashdict[str(node)] = (trash, amount)
+            with open('{}/{}trash.json'.format(self.folder, kind), 'w') as file:
+                json.dump(trashdict, file)
+
 
 if __name__ == '__main__':
     random.seed(1)
@@ -586,8 +582,8 @@ if __name__ == '__main__':
         filename='main.log', level=llevel, format='%(asctime)s %(levelname)s\t %(message)s', filemode='w')
     args = parse_args()
     sim = Simulator(jsonfile=args.json, coding=args.coding, fieldsize=args.fieldsize, sendall=args.sendam, own=args.own,
-                    multiprocessing=args.multiprocessing, edgefail=args.failedge, nodefail=args.failnode,
-                    allfail=args.failall, randcof=args.amount, folder=args.folder)
+                    edgefail=args.failedge, nodefail=args.failnode, allfail=args.failall, randcof=args.amount,
+                    folder=args.folder)
     starttime = time.time()
     complete = False
     while not complete:
@@ -602,6 +598,7 @@ if __name__ == '__main__':
     # sim.drawtrash()
     # sim.drawtrash('real')
     sim.drawfailes()
+    sim.writelogs()
     with open('path.json', 'w') as f:
         newdata = {}
         for batch in sim.getpath():
