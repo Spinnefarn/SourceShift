@@ -26,7 +26,7 @@ def parse_args():
                         type=tuple,
                         nargs=2,
                         help='In case of no json given how many random nodes should be created and max dist for links.',
-                        default=(20, 0.5))
+                        default=(10, 0.1))
     parser.add_argument('-c', '--coding',
                         dest='coding',
                         type=int,
@@ -66,11 +66,16 @@ def parse_args():
                         dest='failall',
                         help='Everything should fail(just one by time.',
                         default=False)
-    parser.add_argument('-f', '--folder',
+    parser.add_argument('-F', '--folder',
                         dest='folder',
                         type=str,
                         help='Folder where results should be placed in.',
                         default='.')
+    parser.add_argument('-max', '--maxduration',
+                        dest='maxduration',
+                        type=int,
+                        help='Maximum number time slots to wait until destination finishes.',
+                        default=0)
     return parser.parse_args()
 
 
@@ -93,15 +98,16 @@ def receive(queue, node, timestamp):
 class Simulator:
     """Round based simulator to simulate traffic in meshed network."""
     def __init__(self, jsonfile=None, coding=None, fieldsize=2, sendall=0, own=True,
-                 multiprocessing=True, edgefail=False, nodefail=False, allfail=False, randcof=(20, 0.5), folder='.'):
+                 multiprocessing=True, edgefail=False, nodefail=False, allfail=False, randcof=(10, 0.5), folder='.',
+                 maxduration=0, randomseed=None):
         self.airtime = {}
         self.edgefail = edgefail
         self.nodefail = nodefail
         self.allfail = allfail
+        self.random = randomseed
+        self.maxduration = maxduration
         self.config = {}
         self.graph = None
-        if not os.path.exists(folder):
-            os.makedirs(folder)
         self.folder = folder
         self.prevfail = None
         self.failhist = {}
@@ -116,7 +122,7 @@ class Simulator:
         self.pos = None
         self.getready(jsonfile=jsonfile, randcof=randcof)
         self.done = False
-        self.path = {}
+        self.path = {0: {}}
         self.timestamp = 0
         self.own = own
         self.donedict = {}
@@ -130,20 +136,14 @@ class Simulator:
                 if neighbor != 'S':  # Source will not receive a packet, but still written down
                     for name in self.nodes:  # Add received Packet to buffer with coding
                         if str(name) == neighbor:
-                            special = False
-                            for invnei in self.graph.neighbors(neighbor):
-                                if self.graph.nodes[neighbor]['EOTX'] > self.graph.nodes[invnei]['EOTX']:
-                                    if invnei != str(node) and self.own:
-                                        special = True
-                                        break
-                            name.buffpacket(batch=node.getbatch(), coding=packet, preveotx=node.geteotx(),
-                                            special=special, ts=self.timestamp)
+                            if name.gethealth():    # Broken nodes should not receive
+                                special = self.checkspecial(node, neighbor) if self.own else False
+                                name.buffpacket(batch=node.getbatch(), coding=packet, preveotx=node.geteotx(),
+                                                special=special, ts=self.timestamp)
+                                if (str(node), neighbor) not in self.path[node.getbatch()]:
+                                    self.path[node.getbatch()][(str(node), neighbor)] = []
+                                self.path[node.getbatch()][(str(node), neighbor)].append(self.timestamp)
                             break
-                if node.getbatch() not in self.path:
-                    self.path[node.getbatch()] = {}
-                if (str(node), neighbor) not in self.path[node.getbatch()]:
-                    self.path[node.getbatch()][(str(node), neighbor)] = []
-                self.path[node.getbatch()][(str(node), neighbor)].append(self.timestamp)
 
     def calcairtime(self):
         """Calculate the amount of used airtime in total."""
@@ -233,18 +233,34 @@ class Simulator:
         """Calculate duration since batch was started. To know there is no connection SD."""
         if len(self.batchhist) == 0:
             return True
-        elif len(self.batchhist) == 1:
-            if self.timestamp - self.batchhist[0] > 20 * self.batchhist[0]:
+        if self.maxduration:
+            maxval = self.maxduration
+        else:
+            maxval = 20 * self.batchhist[0]
+        if len(self.batchhist) == 1:
+            if self.timestamp - self.batchhist[0] > maxval:
                 logging.warning('Stopped batch after {} timesteps'.format(self.timestamp - self.batchhist[0]))
                 return False
             else:
                 return True
         else:
-            if self.timestamp - self.batchhist[-1] > 20 * self.batchhist[0]:
+            if self.timestamp - self.batchhist[-1] > maxval:
                 logging.warning('Stopped batch after {} timesteps'.format(self.timestamp - self.batchhist[-1]))
                 return False
             else:
                 return True
+
+    def checkspecial(self, node, neighbor):
+        """Return True if node should be able to send over special metric."""
+        for invnei in self.graph.neighbors(neighbor):
+            if self.graph.nodes[neighbor]['EOTX'] > self.graph.nodes[invnei]['EOTX']:   # Maybe a different way
+                if invnei != str(node):     # Don't think your source is a different way
+                    for invnode in self.nodes:
+                        if str(invnode) == invnei:
+                            if not invnode.isdone():     # Don't get special if dst is done
+                                return True
+                            break
+        return False
 
     def checkstate(self):
         """Node should stop sending if all neighbors have complete information."""
@@ -263,16 +279,17 @@ class Simulator:
             if allcomplete:
                 node.stopsending()
                 for neighbor in self.graph.neighbors(str(node)):
-                    for neighbornode in self.nodes:
-                        if str(neighbornode) == neighbor:
-                            neighbornode.becomesource()
-                            break
+                    if self.checkspecial(node, neighbor):
+                        for neighbornode in self.nodes:
+                            if str(neighbornode) == neighbor:
+                                neighbornode.becomesource()
+                                break
 
-    def createnetwork(self, config=None, randcof=(20, 0.5)):
+    def createnetwork(self, config=None, randcof=(10, 0.5)):
         """Create network using networkx library based on configuration given as dict."""
         if config is None:
-            # graph = nx.random_geometric_graph(randcof[0], randcof[1])
-            graph = nx.barabasi_albert_graph(randcof[0], 2)
+            graph = nx.random_geometric_graph(randcof[0], randcof[1])
+            # graph = nx.barabasi_albert_graph(randcof[0], 2)     # not sure which option for random graphes to take
             mapping = dict(zip(graph.nodes(), "SDABCEFGHIJKLMNOPQRTUVWXYZ"[:randcof[0]]))
             self.graph = nx.relabel_nodes(graph, mapping)
             self.pos = nx.kamada_kawai_layout(self.graph)
@@ -290,7 +307,7 @@ class Simulator:
                 configlist.append((edge['nodes'][0], edge['nodes'][1], edge['loss']))
             self.graph = nx.Graph()
             self.graph.add_weighted_edges_from(configlist)
-        self.nodes = [components.Node(name=name, coding=self.coding, fieldsize=self.fieldsize)
+        self.nodes = [components.Node(name=name, coding=self.coding, fieldsize=self.fieldsize, random=self.random)
                       for name in self.graph.nodes]
         for node in self.nodes:
             self.airtime[str(node)] = []
@@ -300,10 +317,11 @@ class Simulator:
         """Draw batch duration over failed nodes/edges."""
         plt.figure(figsize=(10, 10))
         if failhist is not None:
-            plt.bar(range(len(failhist)), failhist.values(), label='MORE')
-            plt.bar(range(len(self.failhist)), self.failhist.values(), bottom=list(failhist.values()), label='MOREL')
+            plt.bar(range(len(failhist)), list(failhist.values()), label='MORE')
+            plt.bar(range(len(self.failhist)), list(self.failhist.values()), bottom=list(failhist.values()),
+                    label='MORELESS')
         else:
-            plt.bar(range(len(self.failhist)), self.failhist.values(), label='MOREL')
+            plt.bar(range(len(self.failhist)), list(self.failhist.values()), label='MORE')
         plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         plt.ylabel('Needed airtime in timeslots')
         plt.xlabel('Failure')
@@ -344,7 +362,6 @@ class Simulator:
             plt.savefig('{}/usedgraphownfail{}.pdf'.format(self.folder, fail))
         else:
             plt.savefig('{}/usedgraphfail{}.pdf'.format(self.folder, fail))
-
         plt.close()
 
     def drawtrash(self, kind=None):
@@ -442,18 +459,33 @@ class Simulator:
         """Return graph."""
         return self.graph
 
-    def getready(self, jsonfile=None, randcof=(20, 0.5)):
+    def getready(self, jsonfile=None, randcof=(10, 0.5)):
         """Do the basic stuff to get ready."""
-        self.createnetwork(config=readconf(jsonfile), randcof=randcof)
-        self.calceotx()
-        self.calc_tx_credit()
+        while jsonfile is None:
+            try:
+                self.createnetwork(config=readconf(jsonfile), randcof=randcof)
+                self.calceotx()
+                self.calc_tx_credit()
+            except ZeroDivisionError:
+                logging.info('Found graph with no connection between S and D')
+                continue
+            logging.info('Created random graph successfully!')
+            break
+        else:
+            self.createnetwork(config=readconf(jsonfile), randcof=randcof)
+            self.calceotx()
+            self.calc_tx_credit()
+            logging.info('Created network from JSON successfully!')
         self.drawunused()
         plt.close()
-        logging.info('Created network from JSON successfully!')
 
     def getpath(self):
         """Get path of the packet which arrived successfully."""
         return self.path
+
+    def getneeded(self):
+        """Get the amount of time needed for first batch."""
+        return self.batchhist[0]
 
     def newbatch(self):
         """Spawn new batch if old one is done."""
@@ -463,6 +495,7 @@ class Simulator:
         self.done = False
         self.donedict = {}
         prevfail = None
+        self.path[self.batch] = {}
         if isinstance(self.prevfail, int):
             prevfail = str(self.nodes[self.prevfail])
         elif isinstance(self.prevfail, tuple):
@@ -547,6 +580,7 @@ class Simulator:
 
 
 if __name__ == '__main__':
+    random.seed(1)
     llevel = logging.INFO
     logging.basicConfig(
         filename='main.log', level=llevel, format='%(asctime)s %(levelname)s\t %(message)s', filemode='w')
@@ -565,8 +599,8 @@ if __name__ == '__main__':
         sim.drawused()
         complete = sim.newbatch()
     logging.info('{:3.0f} Seconds needed in total.'.format(time.time() - starttime))
-    sim.drawtrash()
-    sim.drawtrash('real')
+    # sim.drawtrash()
+    # sim.drawtrash('real')
     sim.drawfailes()
     with open('path.json', 'w') as f:
         newdata = {}

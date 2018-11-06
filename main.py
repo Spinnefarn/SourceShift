@@ -4,7 +4,9 @@
 import argparse
 import json
 import time
+import os
 from Simulator import Simulator
+import random
 
 
 def parse_args():
@@ -20,7 +22,7 @@ def parse_args():
                         type=tuple,
                         nargs=2,
                         help='In case of no json given how many random nodes should be created and max dist for links.',
-                        default=(20, 0.5))
+                        default=(20, 0.3))
     parser.add_argument('-c', '--coding',
                         dest='coding',
                         type=int,
@@ -65,29 +67,54 @@ def parse_args():
                         type=str,
                         help='Folder where results should be placed in.',
                         default='.')
+    parser.add_argument('-max', '--maxduration',
+                        dest='maxduration',
+                        type=int,
+                        help='Maximum number time slots to wait until destination finishes.',
+                        default=0)
+    parser.add_argument('-r', '--random',
+                        dest='random',
+                        type=int,
+                        help='Specify a seed to reduce randomness.',
+                        default=None)
     return parser.parse_args()
 
 
 if __name__ == '__main__':
-    import logging
-    llevel = logging.INFO
     args = parse_args()
+    if args.random is None:
+        randomnumber = random.randint(0, 10000)
+    else:
+        randomnumber = args.random
+    random.seed(randomnumber)
+    if not os.path.exists(args.folder):
+        os.makedirs(args.folder)
+    elif args.folder != '.':
+        filelist = [file for file in os.listdir(args.folder)]
+        for file in filelist:
+            os.remove(os.path.join(args.folder, file))
+    import logging
+    llevel = logging.DEBUG
     logging.basicConfig(
         filename='{}/main.log'.format(args.folder), level=llevel, format='%(asctime)s %(levelname)s\t %(message)s',
         filemode='w')
+    logging.info('Randomseed = ' + str(randomnumber))
     failes = None
     generated = False
+    needed = 0
     for ownbool in [False, True]:
         if not generated or args.json is not None:
             sim = Simulator(jsonfile=args.json, coding=args.coding, fieldsize=args.fieldsize,
                             sendall=args.sendam, own=ownbool, multiprocessing=args.multiprocessing,
                             edgefail=args.failedge, nodefail=args.failnode, allfail=args.failall, randcof=args.amount,
-                            folder=args.folder)
+                            folder=args.folder, maxduration=args.maxduration if not needed else 20 * needed,
+                            randomseed=randomnumber)
         else:
-            sim = Simulator(jsonfile='usedgraph.json', coding=args.coding, fieldsize=args.fieldsize,
-                            sendall=args.sendam, own=ownbool, multiprocessing=args.multiprocessing,
-                            edgefail=args.failedge, nodefail=args.failnode, allfail=args.failall, randcof=args.amount,
-                            folder=args.folder)
+            sim = Simulator(jsonfile='{}/usedgraph.json'.format(args.folder), coding=args.coding,
+                            fieldsize=args.fieldsize, sendall=args.sendam, own=ownbool,
+                            multiprocessing=args.multiprocessing, edgefail=args.failedge, nodefail=args.failnode,
+                            allfail=args.failall, randcof=args.amount, folder=args.folder,
+                            maxduration=args.maxduration if not needed else 20 * needed, randomseed=randomnumber)
             pass
         starttime = time.time()
         complete = False
@@ -100,8 +127,9 @@ if __name__ == '__main__':
             sim.drawused()
             complete = sim.newbatch()
         logging.info('{:3.0f} Seconds needed in total.'.format(time.time() - starttime))
-        sim.drawtrash()
-        sim.drawtrash('real')
+        needed = needed if needed else sim.getneeded()
+        # sim.drawtrash()
+        # sim.drawtrash('real')
         if failes is None:
             failes = sim.drawfailes()
         else:

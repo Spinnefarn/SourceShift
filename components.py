@@ -69,8 +69,11 @@ def makenice(trash, maxts):
 
 class Node:
     """Representation of a node on the network."""
-
-    def __init__(self, name='S', coding=None, fieldsize=1):
+    def __init__(self, name='S', coding=None, fieldsize=1, random=None):
+        if random is None:
+            np.random.seed(1)
+        else:
+            np.random.seed(random)
         self.name = name
         self.buffer = np.array([], dtype=int)
         self.fieldsize = 2 ** fieldsize
@@ -222,7 +225,9 @@ class Node:
 
     def rcvpacket(self, timestamp):
         """Add received Packet to buffer. Do this at end of timeslot."""
-        for batch, coding, preveotx, special in self.incbuffer:
+        logging.debug('Start at {}'.format(self.name))
+        while len(self.incbuffer):
+            batch, coding, preveotx, special = self.incbuffer.pop()
             if self.name == 'S':  # Cant get new information if you're source
                 break
             elif batch < self.batch:
@@ -231,35 +236,32 @@ class Node:
                 self.buffer = np.array([coding], dtype=int)
                 self.batch = batch
                 self.rank = 1 if self.name != 'S' else self.coding
-                self.complete = self.name == 'S'
+                self.complete = self.rank == self.coding
                 if self.creditcounter == float('inf'):  # Return to normal if new batch arrives
                     self.creditcounter = 0.
                 if self.quiet:
                     self.quiet = False
             else:  # Just add new information if its new
-                newrank = calcrank(np.vstack([self.buffer, coding]), self.field)
+                if self.complete:        # Packet can just be linear dependent if rank is full
+                    newrank = self.rank
+                else:
+                    logging.debug('Rank calculation at {}'.format(self.name))
+                    # logging.debug(str(np.vstack([self.buffer, coding])))
+                    newrank = calcrank(np.vstack([self.buffer, coding]), self.field)
+                    logging.debug('Calculated rank for {} is {}'.format(self.name, newrank))
                 if self.rank < newrank:
                     self.buffer = np.vstack([self.buffer, coding])
                     self.rank = newrank
+                    self.complete = self.coding == newrank
                 elif preveotx > self.eotx:
                     self.realtrash.append(timestamp)
                 else:
-                    if self.complete:
-                        logging.debug('Got linear dependent packet at {}, decoder full time = {}'.format(self.name,
-                                                                                                         timestamp))
-                        self.trash.append(timestamp)
-                    else:
-                        logging.debug('Got linear dependent packet at {} coding {}, time {}'.format(self.name,
-                                                                                                    str(coding),
-                                                                                                    timestamp))
-                        self.trash.append(timestamp)
+                    self.trash.append(timestamp)
             if special and self.credit == 0:
                 self.creditcounter += 1
             if preveotx > self.eotx:
                 self.creditcounter += self.credit
-        self.incbuffer = []
-        if self.name != 'S':
-            self.complete = self.coding == self.rank
+        logging.debug('Rcv done at {}'.format(self.name))
 
     def reducecredit(self):
         """Reduce tx credit."""
@@ -279,5 +281,6 @@ class Node:
 
     def tellstate(self):
         """Tell current state."""
+        logging.debug('Tellstate at {}'.format(self.name))
         return self.name, self.buffer.copy(), self.rank, self.trash.copy(), self.realtrash.copy(), \
             self.batch, self.creditcounter
