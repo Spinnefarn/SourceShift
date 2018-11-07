@@ -6,9 +6,11 @@ import json
 import time
 import os
 from Simulator import Simulator
+import plotter
 import random
 import logging
-from multiprocessing import Process
+import time
+from multiprocessing import Process, cpu_count, active_children
 
 
 def parse_args():
@@ -104,6 +106,14 @@ def runsim(config):
         json.dump(config, file)
 
 
+def launchsubp(config):
+    """Launch subprocess."""
+    p = Process(target=runsim, args=(config,))
+    p.start()
+    logging.info('Startet simulation process with {}'.format(config))
+    processes.append(p)
+
+
 def cleanfolder(folder):
     """Make sure folder exist and is empty."""
     if not os.path.exists(folder):
@@ -129,16 +139,19 @@ if __name__ == '__main__':
         filename='main.log', level=llevel, format='%(asctime)s %(levelname)s\t %(message)s',
         filemode='w')
     logging.info('Randomseed = ' + str(randomnumber))
-    folderlist = ['test4', 'test5', 'test6', 'test7']
+    folderlist = ['test{}'.format(i) for i in range(20)]
     processes = []
     for element in folderlist:
         cleanfolder(element)
         confdict['folder'] = element
         confdict['own'] = not confdict['own']
-        p = Process(target=runsim, args=(confdict,))
-        p.start()
-        logging.info('Startet simulation process with {}'.format(args))
-        processes.append(p)
+        while True:
+            if cpu_count() > len(active_children()):
+                launchsubp(confdict)
+                break
+            else:
+                time.sleep(1)
     for process in processes:
         process.join()
+    plotter.plotfailhist(folderlist)
     logging.info('Everything done')

@@ -43,11 +43,6 @@ def parse_args():
                         type=bool,
                         help='Use own approach or MORE.',
                         default=False)
-    parser.add_argument('-m', '--multiprocessing',
-                        dest='multiprocessing',
-                        type=bool,
-                        help='Turn on multiprocessing, default on.',
-                        default=False)
     parser.add_argument('-fe', '--failedge',
                         dest='failedge',
                         type=bool,
@@ -83,7 +78,7 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     if args.random is None:
-        randomnumber = random.randint(0, 10000)
+        randomnumber = random.randint(0, 1000000)
     else:
         randomnumber = args.random
     random.seed(randomnumber)
@@ -99,40 +94,25 @@ if __name__ == '__main__':
         filename='{}/main.log'.format(args.folder), level=llevel, format='%(asctime)s %(levelname)s\t %(message)s',
         filemode='w')
     logging.info('Randomseed = ' + str(randomnumber))
-    failes = None
-    generated = False
-    needed = 0
-    for ownbool in [False, True]:
-        if not generated or args.json is not None:
-            sim = Simulator(jsonfile=args.json, coding=args.coding, fieldsize=args.fieldsize,
-                            sendall=args.sendam, own=ownbool, edgefail=args.failedge, nodefail=args.failnode,
-                            allfail=args.failall, randcof=args.amount, folder=args.folder,
-                            maxduration=args.maxduration if not needed else 20 * needed, randomseed=randomnumber)
-        else:
-            sim = Simulator(jsonfile='{}/usedgraph.json'.format(args.folder), coding=args.coding,
-                            fieldsize=args.fieldsize, sendall=args.sendam, own=ownbool, edgefail=args.failedge,
-                            nodefail=args.failnode, allfail=args.failall, randcof=args.amount, folder=args.folder,
-                            maxduration=args.maxduration if not needed else 20 * needed, randomseed=randomnumber)
-            pass
-        starttime = time.time()
-        complete = False
-        while not complete:
-            beginbatch = time.time()
-            done = False
-            while not done:
-                done = sim.update()
-            logging.info('{:3.0f} Seconds needed'.format(time.time() - beginbatch))
-            sim.drawused()
-            complete = sim.newbatch()
-        logging.info('{:3.0f} Seconds needed in total.'.format(time.time() - starttime))
-        needed = needed if needed else sim.getneeded()
-        # sim.drawtrash()
-        # sim.drawtrash('real')
-        if failes is None:
-            failes = sim.drawfailes()
-        else:
-            sim.drawfailes(failes)
-        generated = True
+    sim = Simulator(jsonfile=args.json, coding=args.coding, fieldsize=args.fieldsize,
+                    sendall=args.sendam, own=args.own, edgefail=args.failedge, nodefail=args.failnode,
+                    allfail=args.failall, randcof=args.amount, folder=args.folder,
+                    maxduration=args.maxduration, randomseed=randomnumber)
+
+    starttime = time.time()
+    complete = False
+    while not complete:
+        beginbatch = time.time()
+        done = False
+        while not done:
+            done = sim.update()
+        logging.info('{:3.0f} Seconds needed'.format(time.time() - beginbatch))
+        sim.drawused()
+    complete = sim.newbatch()
+    logging.info('{:3.0f} Seconds needed in total.'.format(time.time() - starttime))
+    # sim.drawtrash()
+    # sim.drawtrash('real')
+    sim.drawfailes()
     with open('{}/path.json'.format(args.folder), 'w') as f:
         newdata = {}
         for batch in sim.getpath():

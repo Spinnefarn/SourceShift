@@ -4,6 +4,7 @@
 import matplotlib.pylab as p
 import json
 import os
+import statistics
 
 
 def readinformation(folder):
@@ -17,16 +18,45 @@ def readinformation(folder):
     raise FileNotFoundError
 
 
-def plot(folders=None):
+def plotfailhist(folders=None):
     """Plot airtime diagram to compare different simulations."""
     if folders is None:
         quit(1)
     p.figure(figsize=(20, 10))
     failhist, config = {}, {}
+    moredict, morelessdict = {}, {}
     for folder in folders:
         failhist, config = readinformation(folder)
-        label = 'MORELESS' if config['own'] else 'MORE'
-        p.bar(range(len(failhist)), list(failhist.values()), label=label, alpha=0.5)
+        if config['own']:
+            morelessdict[folder] = failhist
+        else:
+            moredict[folder] = failhist
+    moreplot, morestd = {}, {}
+    if len(moredict) > 1:
+        firstfolder = list(moredict.keys())[0]
+        for fail in moredict[firstfolder].keys():
+            counter = []
+            for folder in moredict.keys():
+                counter.append(moredict[folder][fail])
+            moreplot[fail] = statistics.mean(counter)
+            morestd[fail] = statistics.stdev(counter)
+    else:
+        moreplot = moredict
+    morelessplot, morelessstd = {}, {}
+    if len(morelessdict) > 1:
+        firstfolder = list(morelessdict.keys())[0]
+        for fail in morelessdict[firstfolder].keys():
+            counter = []
+            for folder in morelessdict.keys():
+                counter.append(morelessdict[folder][fail])
+            morelessplot[fail] = statistics.mean(counter)
+            morelessstd[fail] = statistics.stdev(counter)
+    else:
+        morelessplot = morelessdict
+
+    p.bar(range(len(moreplot)), list(moreplot.values()), label='MORE', alpha=0.5, yerr=morestd.values(), ecolor='blue')
+    p.bar(range(len(morelessplot)), list(morelessplot.values()), label='MORELESS', alpha=0.5, yerr=morelessstd.values(),
+          ecolor='yellow')
     p.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     p.ylabel('Needed airtime in timeslots')
     p.xlabel('Failure')
@@ -43,4 +73,4 @@ def plot(folders=None):
 
 
 if __name__ == '__main__':
-    plot(['test7', 'test6'])
+    plotfailhist(['test4', 'test5', 'test7', 'test6'])
