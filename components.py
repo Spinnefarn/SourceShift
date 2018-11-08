@@ -236,12 +236,12 @@ class Node:
                     self.buffer = np.vstack([self.buffer, coding])
                     self.rank = newrank
                     self.complete = self.coding == newrank
+                    if special and self.credit == 0:
+                        self.creditcounter += 1
                 elif preveotx > self.eotx:
                     self.realtrash.append(timestamp)
                 else:
                     self.trash.append(timestamp)
-            if special and self.credit == 0:
-                self.creditcounter += 1
             if preveotx > self.eotx:
                 self.creditcounter += self.credit
 

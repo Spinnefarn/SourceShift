@@ -5,6 +5,8 @@ import argparse
 import components
 import json
 import networkx as nx
+from matplotlib import use
+use('Agg')
 import matplotlib.pylab as plt
 import random
 import time
@@ -97,6 +99,7 @@ class Simulator:
         self.folder = folder
         self.prevfail = None
         self.failhist = {}
+        self.interresting = []
         self.nodes = []
         self.ranklist = {}
         self.z = {}
@@ -397,19 +400,35 @@ class Simulator:
     def failall(self):
         """Kill one of all."""
         if self.prevfail is None:
-            self.failnode(0)
+            for node in self.nodes:
+                if str(node) == self.interresting[0]:
+                    self.failnode(self.nodes.index(node))
+                    break
         elif isinstance(self.prevfail, tuple):
-            liste = list(self.graph.edges)
-            idx = liste.index(self.prevfail[0])
-            if idx + 1 < len(liste):
-                self.failedge(idx + 1)
+            try:
+                newidx = self.interresting.index(self.prevfail[0]) + 1
+            except ValueError:
+                newidx = self.interresting.index((self.prevfail[0][1], self.prevfail[0][0])) + 1
+            if len(self.interresting) > newidx:
+                newfail = self.interresting[newidx]
+                try:
+                    self.failedge(list(self.graph.edges).index(newfail))
+                except ValueError:
+                    self.failedge(list(self.graph.edges).index((newfail[1], newfail[0])))
             else:
                 return False
         else:
-            if self.prevfail + 1 < len(self.nodes):
-                self.failnode(self.prevfail + 1)
+            newfail = self.interresting[self.interresting.index(str(self.nodes[self.prevfail])) + 1]
+            if isinstance(newfail, tuple):
+                try:
+                    self.failedge(list(self.graph.edges).index(newfail))
+                except ValueError:
+                    self.failedge(list(self.graph.edges).index((newfail[1], newfail[0])))
             else:
-                self.failedge(0)
+                for node in self.nodes:
+                    if newfail == str(node):
+                        self.failnode(self.nodes.index(node))
+                        break
         return True
 
     def failnode(self, nodenum=None):
@@ -439,6 +458,16 @@ class Simulator:
         self.prevfail = (nodes, self.graph.edges[nodes]['weight'])
         self.graph.edges[nodes]['weight'] = 0
         logging.info('Edge {} disabled'.format(str(nodes)))
+
+    def filterinterresting(self):
+        """Get all edges and nodes, which do something if there is no failure.
+        Just these should fail, except src/dst."""
+        usededges = [element for element in list(self.path[0].keys())
+                     if (element[1], element[0]) not in list(self.path[0].keys()) or element[0] > element[1]]
+        for node in self.nodes:
+            if str(node) not in 'SD' and len([str(node) for edge in usededges if str(node) in edge]) > 1:
+                self.interresting.append(str(node))
+        self.interresting.extend(usededges)
 
     def getgraph(self):
         """Return graph."""
@@ -485,6 +514,8 @@ class Simulator:
             prevfail = str(self.nodes[self.prevfail])
         elif isinstance(self.prevfail, tuple):
             prevfail = self.prevfail[0]
+        else:
+            self.filterinterresting()
         if len(self.batchhist):
             self.failhist[prevfail] = self.timestamp - self.batchhist[-1]
         else:
@@ -575,11 +606,11 @@ class Simulator:
                 json.dump(trashdict, file)
         with open('{}/failhist.json'.format(self.folder), 'w') as file:
             failhist = {}
-            for key, value in self.failhist.items():
-                if isinstance(key, tuple):
-                    failhist[key[0] + key[1]] = value
+            for fail, ts in self.failhist.items():
+                if isinstance(fail, tuple):
+                    failhist[fail[0] + fail[1]] = ts
                 else:
-                    failhist[key] = value
+                    failhist[fail] = ts
             json.dump(failhist, file)
 
 

@@ -4,6 +4,7 @@
 import argparse
 import json
 import time
+import datetime
 import os
 from Simulator import Simulator
 import plotter
@@ -134,24 +135,29 @@ if __name__ == '__main__':
     confdict = {'json': args.json, 'randconf': args.amount, 'coding': args.coding, 'fieldsize': args.fieldsize,
                 'sendam': args.sendam, 'own': args.own, 'failedge': args.failedge, 'failnode': args.failnode,
                 'failall': args.failall, 'folder': args.folder, 'maxduration': args.maxduration, 'random': randomnumber}
-    llevel = logging.DEBUG
+    llevel = logging.INFO
     logging.basicConfig(
         filename='main.log', level=llevel, format='%(asctime)s %(levelname)s\t %(message)s',
         filemode='w')
     logging.info('Randomseed = ' + str(randomnumber))
-    folderlist = ['test{}'.format(i) for i in range(20)]
+    now = datetime.datetime.now()
+    date = int(str(now.year) + str(now.month) + str(now.day))
+    folderlist = ['{}/test{}'.format(date, i) for i in range(2000)]
     processes = []
-    for element in folderlist:
-        cleanfolder(element)
-        confdict['folder'] = element
-        confdict['own'] = not confdict['own']
-        while True:
-            if cpu_count() > len(active_children()):
-                launchsubp(confdict)
-                break
-            else:
-                time.sleep(1)
+    try:
+        for element in folderlist:
+            cleanfolder(element)
+            confdict['folder'] = element
+            confdict['own'] = not confdict['own']
+            while True:
+                if cpu_count() > len(active_children()):
+                    launchsubp(confdict)
+                    break
+                else:
+                    time.sleep(1)
+    except KeyboardInterrupt:
+        pass
     for process in processes:
         process.join()
-    plotter.plotfailhist(folderlist)
+    plotter.plotfailhist(date, folderlist)
     logging.info('Everything done')

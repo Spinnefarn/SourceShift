@@ -89,7 +89,7 @@ if __name__ == '__main__':
         for file in filelist:
             os.remove(os.path.join(args.folder, file))
     import logging
-    llevel = logging.DEBUG
+    llevel = logging.INFO
     logging.basicConfig(
         filename='{}/main.log'.format(args.folder), level=llevel, format='%(asctime)s %(levelname)s\t %(message)s',
         filemode='w')
@@ -108,7 +108,7 @@ if __name__ == '__main__':
             done = sim.update()
         logging.info('{:3.0f} Seconds needed'.format(time.time() - beginbatch))
         sim.drawused()
-    complete = sim.newbatch()
+        complete = sim.newbatch()
     logging.info('{:3.0f} Seconds needed in total.'.format(time.time() - starttime))
     # sim.drawtrash()
     # sim.drawtrash('real')

@@ -4,6 +4,7 @@
 import matplotlib.pylab as p
 import json
 import os
+import datetime
 import statistics
 
 
@@ -18,15 +19,17 @@ def readinformation(folder):
     raise FileNotFoundError
 
 
-def plotfailhist(folders=None):
+def plotfailhist(date=None, folders=None):
     """Plot airtime diagram to compare different simulations."""
     if folders is None:
         quit(1)
+    if date is None:
+        date = ''
     p.figure(figsize=(20, 10))
     failhist, config = {}, {}
     moredict, morelessdict = {}, {}
     for folder in folders:
-        failhist, config = readinformation(folder)
+        failhist, config = readinformation('{}/{}'.format(date, folder))
         if config['own']:
             morelessdict[folder] = failhist
         else:
@@ -37,7 +40,10 @@ def plotfailhist(folders=None):
         for fail in moredict[firstfolder].keys():
             counter = []
             for folder in moredict.keys():
-                counter.append(moredict[folder][fail])
+                try:
+                    counter.append(moredict[folder][fail])
+                except KeyError:
+                    pass
             moreplot[fail] = statistics.mean(counter)
             morestd[fail] = statistics.stdev(counter)
     else:
@@ -48,29 +54,45 @@ def plotfailhist(folders=None):
         for fail in morelessdict[firstfolder].keys():
             counter = []
             for folder in morelessdict.keys():
-                counter.append(morelessdict[folder][fail])
+                try:
+                    counter.append(morelessdict[folder][fail])
+                except KeyError:
+                    pass
             morelessplot[fail] = statistics.mean(counter)
             morelessstd[fail] = statistics.stdev(counter)
     else:
         morelessplot = morelessdict
-
-    p.bar(range(len(moreplot)), list(moreplot.values()), label='MORE', alpha=0.5, yerr=morestd.values(), ecolor='blue')
-    p.bar(range(len(morelessplot)), list(morelessplot.values()), label='MORELESS', alpha=0.5, yerr=morelessstd.values(),
+    for fail in morelessplot:
+        if fail not in moreplot:
+            moreplot[fail] = moreplot['None']
+            morestd[fail] = morestd['None']
+    for fail in moreplot:
+        if fail not in morelessplot:
+            morelessplot[fail] = morelessplot['None']
+            morelessstd[fail] = morelessstd['None']
+    moreplotlist = [moreplot[key] for key in sorted(moreplot.keys())]
+    morestdlist = [morestd[key] for key in sorted(morestd.keys())]
+    morelessplotlist = [morelessplot[key] for key in sorted(morelessplot.keys())]
+    morelessstdlist = [morelessstd[key] for key in sorted(morelessstd.keys())]
+    p.bar(range(len(moreplotlist)), moreplotlist, label='MORE', alpha=0.5, yerr=morestdlist, ecolor='blue')
+    p.bar(range(len(morelessplotlist)), morelessplotlist, label='MORELESS', alpha=0.5, yerr=morelessstdlist,
           ecolor='yellow')
     p.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     p.ylabel('Needed airtime in timeslots')
     p.xlabel('Failure')
+    p.yscale('log')
     if config['maxduration']:
         p.ylim([0, config['maxduration']])
-    else:
-        p.yscale('log')
-    p.xlim([-1, len(failhist)])
+
+    p.xlim([-1, len(moreplot)])
     p.title('Needed airtime over failures for different protocols')
-    p.xticks(range(len(failhist)), labels=failhist.keys(), rotation=90)
+    p.xticks(range(len(moreplot)), labels=sorted(moreplot.keys()), rotation=90)
     p.tight_layout()
-    p.savefig('airtimefail.pdf')
+    p.savefig('{}/airtimefail.pdf'.format(date))
     p.close()
 
 
 if __name__ == '__main__':
-    plotfailhist(['test4', 'test5', 'test7', 'test6'])
+    now = datetime.datetime.now()
+    date = int(str(now.year) + str(now.month) + str(now.day))
+    plotfailhist(date, ['test{}'.format(i) for i in range(200)])
