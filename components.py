@@ -165,6 +165,10 @@ class Node:
         """Tell the amount of tx credit."""
         return self.creditcounter
 
+    def getcreditinc(self):
+        """Tell the amount of delta tx credit."""
+        return self.credit
+
     def geteotx(self):
         """Get eotx."""
         return self.eotx
@@ -223,13 +227,17 @@ class Node:
                 self.batch = batch
                 self.rank = 1 if self.name != 'S' else self.coding
                 self.complete = self.rank == self.coding
-                if self.creditcounter == float('inf'):  # Return to normal if new batch arrives
+                if self.creditcounter == float('inf'):      # Return to normal if new batch arrives
                     self.creditcounter = 0.
                 if self.quiet:
                     self.quiet = False
+                if special and self.credit == 0:
+                    self.creditcounter += 1
             else:  # Just add new information if its new
                 if self.complete:        # Packet can just be linear dependent if rank is full
                     newrank = self.rank
+                    if special and self.credit == 0:
+                        self.creditcounter += 1
                 else:
                     newrank = calcrank(np.vstack([self.buffer, coding]), self.field)
                 if self.rank < newrank:

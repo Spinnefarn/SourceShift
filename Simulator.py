@@ -23,7 +23,7 @@ def parse_args():
                         help='should contain network configuration',
                         default=None)
     parser.add_argument('-n', '--randomnodes',
-                        dest='amount',
+                        dest='randomnodes',
                         type=tuple,
                         nargs=2,
                         help='In case of no json given how many random nodes should be created and max dist for links.',
@@ -86,7 +86,7 @@ def readconf(jsonfile):
 
 class Simulator:
     """Round based simulator to simulate traffic in meshed network."""
-    def __init__(self, jsonfile=None, coding=None, fieldsize=2, sendall=0, own=True, edgefail=False, nodefail=False,
+    def __init__(self, jsonfile=None, coding=None, fieldsize=2, sendall=0, own=True, edgefail=None, nodefail=None,
                  allfail=False, randcof=(10, 0.5), folder='.', maxduration=0, randomseed=None):
         self.airtime = {}
         self.edgefail = edgefail
@@ -227,13 +227,13 @@ class Simulator:
             maxval = 20 * self.batchhist[0]
         if len(self.batchhist) == 1:
             if self.timestamp - self.batchhist[0] > maxval:
-                logging.warning('Stopped batch after {} timesteps'.format(self.timestamp - self.batchhist[0]))
+                logging.info('Stopped batch after {} timesteps'.format(self.timestamp - self.batchhist[0]))
                 return False
             else:
                 return True
         else:
             if self.timestamp - self.batchhist[-1] > maxval:
-                logging.warning('Stopped batch after {} timesteps'.format(self.timestamp - self.batchhist[-1]))
+                logging.info('Stopped batch after {} timesteps'.format(self.timestamp - self.batchhist[-1]))
                 return False
             else:
                 return True
@@ -245,8 +245,8 @@ class Simulator:
                 if invnei != str(node):     # Don't think your source is a different way
                     for invnode in self.nodes:
                         if str(invnode) == invnei:
-                            if not invnode.isdone():     # Don't get special if dst is done
-                                return True
+                            if not invnode.isdone() or node.getbatch() > invnode.getbatch():
+                                return True         # Don't get special if your dst is done
                             break
         return False
 
@@ -283,11 +283,6 @@ class Simulator:
             self.pos = nx.kamada_kawai_layout(self.graph)
             for edge in list(self.graph.edges):
                 self.graph.edges[edge]['weight'] = round(random.uniform(0.05, 0.95), 1)
-            information = {'nodes': {node: {'x': position[0], 'y': position[1]} for node, position in self.pos.items()},
-                           'links': [{'nodes': edge, 'loss': self.graph.edges[edge]['weight']}
-                                     for edge in list(self.graph.edges)]}
-            with open('{}/usedgraph.json'.format(self.folder), 'w') as file:
-                json.dump(information, file, indent=4, sort_keys=True)
         else:
             self.pos = config[1]
             configlist = []
@@ -329,7 +324,6 @@ class Simulator:
         labels = {x: round(y, 1) for x, y in nx.get_node_attributes(self.graph, 'EOTX').items()}
         nx.draw_networkx_labels(self.graph, pos=self.pos, labels=labels)
         nx.draw_networkx_edge_labels(self.graph, pos=self.pos, edge_labels=nx.get_edge_attributes(self.graph, 'weight'))
-        plt.savefig('{}/graph.pdf'.format(self.folder))
 
     def drawused(self):
         """Highlight paths used in graph drawn in getready()."""
@@ -431,20 +425,25 @@ class Simulator:
                         break
         return True
 
-    def failnode(self, nodenum=None):
+    def failnode(self, nodenum=None, node=None):
         """Kill a random node."""
         if self.prevfail is not None:
             if isinstance(self.prevfail, tuple):
                 self.graph.edges[self.prevfail[0]]['weight'] = self.prevfail[1]
             else:
                 self.nodes[self.prevfail].heal()
+        if node is not None:
+            for nodeinst in self.nodes:
+                if str(nodeinst) == node:
+                    nodenum = self.nodes.index(nodeinst)
+                    break
         if nodenum is None:
             nodenum = random.randint(0, len(self.nodes) - 1)
         self.nodes[nodenum].fail()
         self.prevfail = nodenum
         logging.info('Node {} disabled'.format(str(self.nodes[nodenum])))
 
-    def failedge(self, edgenum=None):
+    def failedge(self, edgenum=None, edge=None):
         """Kill a random edge."""
         if self.prevfail is not None:
             if isinstance(self.prevfail, tuple):
@@ -452,6 +451,11 @@ class Simulator:
             else:
                 # noinspection PyTypeChecker
                 self.nodes[self.prevfail].heal()
+        if edge is not None:
+            try:
+                edgenum = list(self.graph.edges).index(tuple(edge))
+            except ValueError:
+                edgenum = list(self.graph.edges).index((edge[1], edge[0]))
         if edgenum is None:
             edgenum = random.randint(0, len(self.graph.edges) - 1)
         nodes = list(self.graph.edges)[edgenum]
@@ -490,8 +494,10 @@ class Simulator:
             self.calceotx()
             self.calc_tx_credit()
             logging.info('Created network from JSON successfully!')
-        self.drawunused()
-        plt.close()
+        # self.drawunused()
+        # print('{}/graph.pdf'.format(self.folder))
+        # plt.savefig('{}/graph.pdf'.format(self.folder))
+        # plt.close()
 
     def getpath(self):
         """Get path of the packet which arrived successfully."""
@@ -504,7 +510,7 @@ class Simulator:
     def newbatch(self):
         """Spawn new batch if old one is done."""
         if not self.done:
-            logging.warning('Old batch is not done yet')
+            logging.info('Old batch is not done yet')
         self.batch += 1
         self.done = False
         self.donedict = {}
@@ -517,19 +523,19 @@ class Simulator:
         else:
             self.filterinterresting()
         if len(self.batchhist):
-            self.failhist[prevfail] = self.timestamp - self.batchhist[-1]
+            self.failhist[prevfail] = (self.timestamp - self.batchhist[-1], self.batch - 1)
         else:
-            self.failhist['None'] = self.timestamp
+            self.failhist['None'] = (self.timestamp, self.batch - 1)
         for node in self.nodes:
             if str(node) in 'SD':
                 node.newbatch()
         if self.allfail:
             if not self.failall():  # Just false if last failure was tested
                 return True  # Return done
-        elif self.nodefail:
-            self.failnode()
-        elif self.edgefail:
-            self.failedge()
+        elif self.nodefail is not None:
+            self.failnode(node=self.nodefail)
+        elif self.edgefail is not None:
+            self.failedge(edge=self.edgefail)
         else:
             return True
         self.batchhist.append(self.timestamp)
@@ -537,7 +543,7 @@ class Simulator:
     def sendall(self):
         """All nodes send at same time."""
         for node in self.nodes:
-            if str(node) != 'D' and node.getcredit() > 0 and not node.getquiet() and node.gethealth():
+            if str(node) != 'D' and node.getcredit() > 0. and not node.getquiet() and node.gethealth():
                 self.broadcast(node)
                 node.reducecredit()
                 self.airtime[str(node)].append(self.timestamp)
@@ -545,7 +551,7 @@ class Simulator:
     def sendsel(self):
         """Just the selected amount of nodes send at one timeslot."""
         goodnodes = [  # Goodnode are nodes which are allowed to send
-            node for node in self.nodes if ((node.getcredit() > 0) or (str(node) == 'S')) and not node.getquiet() and
+            node for node in self.nodes if node.getcredit() > 0. and str(node) != 'D' and not node.getquiet() and
             node.gethealth()]
         maxsend = self.sendam if len(goodnodes) > self.sendam else len(goodnodes)
         for _ in range(maxsend):
@@ -612,6 +618,24 @@ class Simulator:
                 else:
                     failhist[fail] = ts
             json.dump(failhist, file)
+        if isinstance(self.prevfail, tuple):        # Repair graph before writing it down
+            self.graph.edges[self.prevfail[0]]['weight'] = self.prevfail[1]
+        elif isinstance(self.prevfail, int):
+            # noinspection PyTypeChecker
+            self.nodes[self.prevfail].heal()
+        information = {'nodes': {node: {'x': position[0], 'y': position[1]} for node, position in self.pos.items()},
+                       'links': [{'nodes': edge, 'loss': self.graph.edges[edge]['weight']}
+                                 for edge in list(self.graph.edges)]}
+        with open('{}/graph.json'.format(self.folder), 'w') as file:
+            json.dump(information, file, indent=4, sort_keys=True)
+        nodedict = {}
+        for node in self.nodes:
+            nodedict[str(node)] = (node.geteotx(), node.getcreditinc())
+        with open('{}/eotx.json'.format(self.folder), 'w') as file:
+            json.dump(nodedict, file)
+        if self.own:
+            with open('{}/OWN.OWN'.format(self.folder), 'w') as file:
+                file.write('OWN')
 
 
 if __name__ == '__main__':
@@ -621,7 +645,7 @@ if __name__ == '__main__':
         filename='main.log', level=llevel, format='%(asctime)s %(levelname)s\t %(message)s', filemode='w')
     args = parse_args()
     sim = Simulator(jsonfile=args.json, coding=args.coding, fieldsize=args.fieldsize, sendall=args.sendam, own=args.own,
-                    edgefail=args.failedge, nodefail=args.failnode, allfail=args.failall, randcof=args.amount,
+                    edgefail=args.failedge, nodefail=args.failnode, allfail=args.failall, randcof=args.randomnodes,
                     folder=args.folder)
     starttime = time.time()
     complete = False

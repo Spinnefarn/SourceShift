@@ -18,8 +18,8 @@ def parse_args():
                         help='should contain network configuration',
                         default=None)
     parser.add_argument('-n', '--randomnodes',
-                        dest='amount',
-                        type=tuple,
+                        dest='randomnodes',
+                        type=float,
                         nargs=2,
                         help='In case of no json given how many random nodes should be created and max dist for links.',
                         default=(20, 0.3))
@@ -45,14 +45,15 @@ def parse_args():
                         default=False)
     parser.add_argument('-fe', '--failedge',
                         dest='failedge',
-                        type=bool,
-                        help='Shut a random edge fail for higher batches.',
-                        default=False)
+                        type=str,
+                        nargs=2,
+                        help='Which edge should fail?',
+                        default=None)
     parser.add_argument('-fn', '--failnode',
                         dest='failnode',
-                        type=bool,
-                        help='Should a random node fail for higher batches.',
-                        default=False)
+                        type=str,
+                        help='Which node should fail?.',
+                        default=None)
     parser.add_argument('-fa', '--failall',
                         dest='failall',
                         help='Everything should fail(just one by time.',
@@ -96,7 +97,7 @@ if __name__ == '__main__':
     logging.info('Randomseed = ' + str(randomnumber))
     sim = Simulator(jsonfile=args.json, coding=args.coding, fieldsize=args.fieldsize,
                     sendall=args.sendam, own=args.own, edgefail=args.failedge, nodefail=args.failnode,
-                    allfail=args.failall, randcof=args.amount, folder=args.folder,
+                    allfail=args.failall, randcof=args.randomnodes, folder=args.folder,
                     maxduration=args.maxduration, randomseed=randomnumber)
 
     starttime = time.time()

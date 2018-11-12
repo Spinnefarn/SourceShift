@@ -3,7 +3,6 @@
 """Main script, this will supervise the simulation."""
 import argparse
 import json
-import time
 import datetime
 import os
 from Simulator import Simulator
@@ -55,14 +54,15 @@ def parse_args():
                         default=False)
     parser.add_argument('-fe', '--failedge',
                         dest='failedge',
-                        type=bool,
-                        help='Shut a random edge fail for higher batches.',
-                        default=False)
+                        type=str,
+                        nargs=2,
+                        help='Which edge should fail?',
+                        default=None)
     parser.add_argument('-fn', '--failnode',
                         dest='failnode',
-                        type=bool,
-                        help='Should a random node fail for higher batches.',
-                        default=False)
+                        type=str,
+                        help='Which node should fail?.',
+                        default=None)
     parser.add_argument('-fa', '--failall',
                         dest='failall',
                         help='Everything should fail(just one by time.',
@@ -91,6 +91,7 @@ def runsim(config):
                     sendall=config['sendam'], own=config['own'], edgefail=config['failedge'],
                     nodefail=config['failnode'], allfail=config['failall'], randcof=config['randconf'],
                     folder=config['folder'], maxduration=config['maxduration'], randomseed=config['random'])
+    logging.info('Start simulator {}'.format(config['folder']))
     starttime = time.time()
     complete = False
     while not complete:
@@ -99,7 +100,7 @@ def runsim(config):
         while not done:
             done = sim.update()
         logging.info('{:3.0f} Seconds needed'.format(time.time() - beginbatch))
-        sim.drawused()
+        # sim.drawused()
         complete = sim.newbatch()
     logging.info('{:3.0f} Seconds needed in total.'.format(time.time() - starttime))
     sim.writelogs()
@@ -127,37 +128,52 @@ def cleanfolder(folder):
 
 if __name__ == '__main__':
     args = parse_args()
-    if args.random is None:
-        randomnumber = random.randint(0, 1000000)
-    else:
-        randomnumber = args.random
-    random.seed(randomnumber)
-    confdict = {'json': args.json, 'randconf': args.amount, 'coding': args.coding, 'fieldsize': args.fieldsize,
-                'sendam': args.sendam, 'own': args.own, 'failedge': args.failedge, 'failnode': args.failnode,
-                'failall': args.failall, 'folder': args.folder, 'maxduration': args.maxduration, 'random': randomnumber}
     llevel = logging.INFO
     logging.basicConfig(
         filename='main.log', level=llevel, format='%(asctime)s %(levelname)s\t %(message)s',
         filemode='w')
-    logging.info('Randomseed = ' + str(randomnumber))
     now = datetime.datetime.now()
-    date = int(str(now.year) + str(now.month) + str(now.day))
-    folderlist = ['{}/test{}'.format(date, i) for i in range(2000)]
-    processes = []
-    try:
-        for element in folderlist:
-            cleanfolder(element)
-            confdict['folder'] = element
-            confdict['own'] = not confdict['own']
-            while True:
-                if cpu_count() > len(active_children()):
-                    launchsubp(confdict)
-                    break
-                else:
-                    time.sleep(1)
-    except KeyboardInterrupt:
-        pass
-    for process in processes:
-        process.join()
-    plotter.plotfailhist(date, folderlist)
+    date = str(now.year) + str(now.month) + str(now.day)
+    for i in range(2):
+        logging.info('Created new graph at graph{}'.format(i))
+        confdict = {'json': args.json, 'randconf': args.amount, 'coding': args.coding, 'fieldsize': args.fieldsize,
+                    'sendam': args.sendam, 'own': args.own, 'failedge': args.failedge, 'failnode': args.failnode,
+                    'failall': False, 'folder': '{}/graph{}/test'.format(date, i), 'maxduration': args.maxduration,
+                    'random': args.random}
+        cleanfolder(confdict['folder'])
+        runsim(confdict)
+        plotter.plotgraph('{}/graph{}/test'.format(date, i))
+        with open('{}/graph{}/test/failhist.json'.format(date, i)) as file:
+            failhist = json.loads(file.read())
+        if args.random is None:
+            randomnumber = random.randint(0, 1000000)
+        else:
+            randomnumber = args.random
+        random.seed(randomnumber)
+        confdict = {'json': args.json, 'randconf': args.amount, 'coding': args.coding, 'fieldsize': args.fieldsize,
+                    'sendam': args.sendam, 'own': args.own, 'failedge': args.failedge, 'failnode': args.failnode,
+                    'failall': True, 'folder': args.folder, 'maxduration': args.maxduration,
+                    'random': randomnumber}
+        logging.info('Randomseed = ' + str(randomnumber))
+        folderlist = ['test{}'.format(i) for i in range(4)]
+        processes = []
+        try:
+            for element in folderlist:
+                cleanfolder('{}/graph{}/{}'.format(date, i, element))
+                confdict['json'] = '{}/graph{}/test/graph.json'.format(date, i)
+                confdict['folder'] = '{}/graph{}/{}'.format(date, i, element)
+                confdict['own'] = not confdict['own']
+                confdict['maxduration'] = 20 * failhist['None'][0]
+                while True:
+                    if cpu_count() > len(active_children()):
+                        launchsubp(confdict)
+                        break
+                    else:
+                        time.sleep(1)
+        except KeyboardInterrupt:
+            pass
+        for process in processes:
+            process.join()
+        plotter.plotgraph(['{}/graph{}/{}'.format(date, i, folder) for folder in folderlist])
+        plotter.plotfailhist(str(date)+'/graph'+str(i), folderlist)
     logging.info('Everything done')
