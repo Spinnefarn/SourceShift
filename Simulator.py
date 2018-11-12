@@ -88,7 +88,7 @@ class Simulator:
     """Round based simulator to simulate traffic in meshed network."""
     def __init__(self, jsonfile=None, coding=None, fieldsize=2, sendall=0, own=True, edgefail=None, nodefail=None,
                  allfail=False, randcof=(10, 0.5), folder='.', maxduration=0, randomseed=None):
-        self.airtime = {}
+        self.airtime = {'None': {}}
         self.edgefail = edgefail
         self.nodefail = nodefail
         self.allfail = allfail
@@ -136,8 +136,9 @@ class Simulator:
     def calcairtime(self):
         """Calculate the amount of used airtime in total."""
         summe = 0
-        for node in self.airtime.keys():
-            summe += len(self.airtime[node])
+        ident = self.getidentifier()
+        for node in self.airtime[ident].keys():
+            summe += len(self.airtime[ident][node])
         return summe
 
     def calce(self, node):
@@ -293,7 +294,6 @@ class Simulator:
         self.nodes = [components.Node(name=name, coding=self.coding, fieldsize=self.fieldsize, random=self.random)
                       for name in self.graph.nodes]
         for node in self.nodes:
-            self.airtime[str(node)] = []
             self.ranklist[str(node)] = []
 
     def drawfailes(self, failhist=None):
@@ -477,6 +477,15 @@ class Simulator:
         """Return graph."""
         return self.graph
 
+    def getidentifier(self):
+        """Get current identifier for airtime dict."""
+        identifier = 'None'
+        if isinstance(self.prevfail, int):
+            identifier = str(self.nodes[self.prevfail])
+        elif isinstance(self.prevfail, tuple):
+            identifier = self.prevfail[0][0] + self.prevfail[0][1]
+        return identifier
+
     def getready(self, jsonfile=None, randcof=(10, 0.5)):
         """Do the basic stuff to get ready."""
         while jsonfile is None:
@@ -538,6 +547,7 @@ class Simulator:
             self.failedge(edge=self.edgefail)
         else:
             return True
+        self.airtime[self.getidentifier()] = {}
         self.batchhist.append(self.timestamp)
 
     def sendall(self):
@@ -546,11 +556,15 @@ class Simulator:
             if str(node) != 'D' and node.getcredit() > 0. and not node.getquiet() and node.gethealth():
                 self.broadcast(node)
                 node.reducecredit()
-                self.airtime[str(node)].append(self.timestamp)
+                ident = self.getidentifier()
+                if str(node) in self.airtime[ident].keys():
+                    self.airtime[ident][str(node)].append(self.timestamp)
+                else:
+                    self.airtime[ident][str(node)] = [self.timestamp]
 
     def sendsel(self):
         """Just the selected amount of nodes send at one timeslot."""
-        goodnodes = [  # Goodnode are nodes which are allowed to send
+        goodnodes = [  # goodnodes are nodes which are allowed to send
             node for node in self.nodes if node.getcredit() > 0. and str(node) != 'D' and not node.getquiet() and
             node.gethealth()]
         maxsend = self.sendam if len(goodnodes) > self.sendam else len(goodnodes)
@@ -559,7 +573,11 @@ class Simulator:
             if str(goodnodes[k]) != 'D':
                 self.broadcast(goodnodes[k])
                 goodnodes[k].reducecredit()
-                self.airtime[str(goodnodes[k])].append(self.timestamp)
+                ident = self.getidentifier()
+                if str(goodnodes[k]) in self.airtime[ident].keys():
+                    self.airtime[ident][str(goodnodes[k])].append(self.timestamp)
+                else:
+                    self.airtime[ident][str(goodnodes[k])] = [self.timestamp]
             del goodnodes[k]
 
     def update(self):

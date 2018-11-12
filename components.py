@@ -227,8 +227,7 @@ class Node:
                 self.batch = batch
                 self.rank = 1 if self.name != 'S' else self.coding
                 self.complete = self.rank == self.coding
-                if self.creditcounter == float('inf'):      # Return to normal if new batch arrives
-                    self.creditcounter = 0.
+                self.creditcounter = 0.
                 if self.quiet:
                     self.quiet = False
                 if special and self.credit == 0:

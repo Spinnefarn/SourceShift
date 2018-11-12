@@ -21,6 +21,18 @@ def drawunused(net=None, pos=None):
     nx.draw_networkx_edge_labels(net, pos=pos, edge_labels=nx.get_edge_attributes(net, 'weight'))
 
 
+def readairtime(folder):
+    """Read logs from folder."""
+    airtime, config, failhist = None, None, None
+    if os.path.exists('{}/airtime.json'.format(folder)):
+        with open('{}/airtime.json'.format(folder)) as file:
+            airtime = json.loads(file.read())
+    if os.path.exists('{}/config.json'.format(folder)):
+        with open('{}/config.json'.format(folder)) as file:
+            config = json.loads(file.read())
+    return airtime, config
+
+
 def readfailhist(folder):
     """Read logs from folder."""
     if os.path.exists('{}/failhist.json'.format(folder)) and os.path.exists('{}/config.json'.format(folder)):
@@ -50,8 +62,88 @@ def readgraph(folder):
     return graph, path, eotx, failhist
 
 
+def plotairtime(mainfolder=None, folders=None):
+    """Plot airtime for different failures."""
+    if folders is None:
+        quit(1)
+    if mainfolder is None:
+        mainfolder = ''
+    p.figure(figsize=(20, 10))
+    moredict, morelessdict = {}, {}
+    globconfig = {}
+    for folder in folders:
+        airtime, config = readairtime('{}/{}'.format(mainfolder, folder))
+        if airtime is None or config is None:
+            print('Can not read log at {}! Continue'.format(folder))
+            continue
+        elif not globconfig:
+            globconfig = config
+        if config['own']:
+            morelessdict[folder] = airtime
+        else:
+            moredict[folder] = airtime
+    moreplot, morestd = {}, {}
+    firstfolder = list(moredict.keys())[1]
+    for fail in moredict[firstfolder].keys():
+        counter = []
+        for folder in moredict.keys():
+            try:
+                counter.append(sum([len(moredict[folder][fail][node]) for node in moredict[folder][fail].keys()]))
+            except KeyError:
+                pass
+        moreplot[fail] = statistics.mean(counter)
+        if len(counter) > 1:
+            morestd[fail] = statistics.stdev(counter)
+        else:
+            morestd[fail] = 0
+    morelessplot, morelessstd = {}, {}
+    firstfolder = list(morelessdict.keys())[0]
+    for fail in morelessdict[firstfolder].keys():
+        counter = []
+        for folder in morelessdict.keys():
+            try:
+                counter.append(sum([len(morelessdict[folder][fail][node])
+                                    for node in morelessdict[folder][fail].keys()]))
+            except KeyError:
+                pass
+        morelessplot[fail] = statistics.mean(counter)
+        if len(counter) > 1:
+            morelessstd[fail] = statistics.stdev(counter)
+        else:
+            morelessstd[fail] = 0
+    for fail in morelessplot:
+        if fail not in moreplot or moreplot[fail] == 0:
+            moreplot[fail] = moreplot['None']
+            morestd[fail] = morestd['None']
+    for fail in moreplot:
+        if fail not in morelessplot:
+            morelessplot[fail] = morelessplot['None']
+            morelessstd[fail] = morelessstd['None']
+    moreplotlist = [moreplot[key] for key in sorted(moreplot.keys())]
+    morestdlist = [morestd[key] for key in sorted(morestd.keys())]
+    morelessplotlist = [morelessplot[key] for key in sorted(morelessplot.keys())]
+    morelessstdlist = [morelessstd[key] for key in sorted(morelessstd.keys())]
+    p.bar(range(len(moreplotlist)), moreplotlist, label='MORE', alpha=0.5, yerr=morestdlist, ecolor='blue')
+    p.bar(range(len(morelessplotlist)), morelessplotlist, label='MORELESS', alpha=0.5, yerr=morelessstdlist,
+          ecolor='yellow')
+    p.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    p.ylabel('Needed airtime in timeslots')
+    p.xlabel('Failure')
+    # p.yscale('log')
+    if globconfig['maxduration']:
+        p.ylim([0, globconfig['maxduration']])
+    else:
+        p.ylim(bottom=0)
+    p.xlim([-1, len(moreplot)])
+    p.title('Needed transmissions over failures for different protocols')
+    p.xticks(range(len(moreplot)), labels=sorted(moreplot.keys()), rotation=90)
+    p.tight_layout()
+    p.savefig('{}/airtimefail.pdf'.format(mainfolder))
+    p.close()
+
+
 def plotfailhist(mainfolder=None, folders=None):
-    """Plot airtime diagram to compare different simulations."""
+    """Plot time to finish transmission diagram to compare different simulations."""
     if folders is None:
         quit(1)
     if mainfolder is None:
@@ -123,15 +215,16 @@ def plotfailhist(mainfolder=None, folders=None):
     p.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     p.ylabel('Needed airtime in timeslots')
     p.xlabel('Failure')
-    p.yscale('log')
+    # p.yscale('log')
     if config['maxduration']:
         p.ylim([0, config['maxduration']])
-
+    else:
+        p.ylim(bottom=0)
     p.xlim([-1, len(moreplot)])
-    p.title('Needed airtime over failures for different protocols')
+    p.title('Needed timeslots over failures for different protocols')
     p.xticks(range(len(moreplot)), labels=sorted(moreplot.keys()), rotation=90)
     p.tight_layout()
-    p.savefig('{}/airtimefail.pdf'.format(mainfolder))
+    p.savefig('{}/timeslotfail.pdf'.format(mainfolder))
     p.close()
 
 
@@ -154,7 +247,32 @@ def plotgraph(folders=None):
         for node in net.nodes:
             net.nodes[node]['EOTX'] = eotx[node][0]
         p.figure(figsize=(10, 10))
+        prevfail = None
         for fail in failhist.keys():
+            if fail != 'None':
+                if len(fail) == 2:
+                    if prevfail is not None:
+                        if len(prevfail[0]) == 1:
+                            for key, value in prevfail[1].items():
+                                net.edges[key]['weight'] = value
+                        else:
+                            net.edges[(prevfail[0][0], prevfail[0][1])]['weight'] = prevfail[1]
+                    prevfail = (fail, net.edges[(fail[0], fail[1])]['weight'])
+                    net.edges[(fail[0], fail[1])]['weight'] = 0
+                else:
+                    if prevfail is not None:
+                        if len(prevfail[0]) == 1:
+                            for key, value in prevfail[1].items():
+                                net.edges[key]['weight'] = value
+                        else:
+                            net.edges[(prevfail[0][0], prevfail[0][1])]['weight'] = prevfail[1]
+                    faildict = {}
+                    for edge in list(net.edges):
+                        if fail in edge:
+                            faildict[edge] = net.edges[edge]['weight']
+                            net.edges[edge]['weight'] = 0
+                    prevfail = (fail, faildict)
+
             drawunused(net, pos)
             if fail == 'None':
                 p.savefig('{}/graph.pdf'.format(folder))    # Save it once without purple
@@ -164,6 +282,7 @@ def plotgraph(folders=None):
                                        alpha=len(path[str(failhist[fail][1])][edge]) * alphaval, edge_color='purple')
             p.savefig('{}/graphfail{}.pdf'.format(folder, fail))
             p.clf()
+    p.close()
 
 
 if __name__ == '__main__':
@@ -171,8 +290,13 @@ if __name__ == '__main__':
     date = int(str(now.year) + str(now.month) + str(now.day))
     # date = str(2018118)
     folderlist = []
+    folderlst = []
     for i in range(2):
-        folderlist.append('{}/graph{}/test'.format(date, i))
-        folderlist.extend(['{}/graph{}/test{}'.format(date, i, j) for j in range(4)])
+        # folderlist.append('{}/graph{}/test'.format(date, i))
+        folderlist.extend(['{}/graph{}/test{}'.format(date, i, j) for j in range(20)])
+        mfolder = '{}/graph{}'.format(date, i)
+        # folderlst.append('test'.format(i))
+        folderlst.extend(['test{}'.format(j) for j in range(20)])
+        plotairtime(mfolder, folderlst)
+        plotfailhist(mfolder, folderlst)
     plotgraph(folders=folderlist)
-    plotfailhist(date, ['test{}'.format(i) for i in range(200)])

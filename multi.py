@@ -104,8 +104,8 @@ def runsim(config):
         complete = sim.newbatch()
     logging.info('{:3.0f} Seconds needed in total.'.format(time.time() - starttime))
     sim.writelogs()
-    with open('{}/config.json'.format(config['folder']), 'w') as file:
-        json.dump(config, file)
+    with open('{}/config.json'.format(config['folder']), 'w') as f:
+        json.dump(config, f)
 
 
 def launchsubp(config):
@@ -121,9 +121,9 @@ def cleanfolder(folder):
     if not os.path.exists(folder):
         os.makedirs(folder)
     elif folder != '.':
-        filelist = [file for file in os.listdir(folder)]
-        for file in filelist:
-            os.remove(os.path.join(folder, file))
+        filelist = [f for f in os.listdir(folder)]
+        for f in filelist:
+            os.remove(os.path.join(folder, f))
 
 
 if __name__ == '__main__':
@@ -142,7 +142,7 @@ if __name__ == '__main__':
                     'random': args.random}
         cleanfolder(confdict['folder'])
         runsim(confdict)
-        plotter.plotgraph('{}/graph{}/test'.format(date, i))
+        plotter.plotgraph(['{}/graph{}/test'.format(date, i)])
         with open('{}/graph{}/test/failhist.json'.format(date, i)) as file:
             failhist = json.loads(file.read())
         if args.random is None:
@@ -175,5 +175,6 @@ if __name__ == '__main__':
         for process in processes:
             process.join()
         plotter.plotgraph(['{}/graph{}/{}'.format(date, i, folder) for folder in folderlist])
-        plotter.plotfailhist(str(date)+'/graph'+str(i), folderlist)
+        plotter.plotairtime('{0}/graph{1}'.format(str(date), str(i)), folderlist)
+        plotter.plotfailhist('{0}/graph{1}'.format(str(date), str(i)), folderlist)
     logging.info('Everything done')
