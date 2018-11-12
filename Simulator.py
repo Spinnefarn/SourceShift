@@ -111,7 +111,7 @@ class Simulator:
         self.pos = None
         self.getready(jsonfile=jsonfile, randcof=randcof)
         self.done = False
-        self.path = {0: {}}
+        self.path = {'None': {}}
         self.timestamp = 0
         self.own = own
         self.donedict = {}
@@ -121,6 +121,8 @@ class Simulator:
         packet = node.getcoded()
         for neighbor in list(self.graph.neighbors(str(node))):
             if self.graph.edges[str(node), neighbor]['weight'] > random.random():  # roll dice
+                if self.graph.edges[str(node), neighbor]['weight'] == 0:
+                    logging.error('Received using dead link!')
                 if neighbor != 'S':  # Source will not receive a packet, but still written down
                     for name in self.nodes:  # Add received Packet to buffer with coding
                         if str(name) == neighbor:
@@ -128,9 +130,9 @@ class Simulator:
                                 special = self.checkspecial(node, neighbor) if self.own else False
                                 name.buffpacket(batch=node.getbatch(), coding=packet, preveotx=node.geteotx(),
                                                 special=special, ts=self.timestamp)
-                                if (str(node), neighbor) not in self.path[node.getbatch()]:
-                                    self.path[node.getbatch()][(str(node), neighbor)] = []
-                                self.path[node.getbatch()][(str(node), neighbor)].append(self.timestamp)
+                                if str(node) + neighbor not in self.path[self.getidentifier()]:
+                                    self.path[self.getidentifier()][(str(node) + neighbor)] = []
+                                self.path[self.getidentifier()][(str(node) + neighbor)].append(self.timestamp)
                             break
 
     def calcairtime(self):
@@ -466,8 +468,8 @@ class Simulator:
     def filterinterresting(self):
         """Get all edges and nodes, which do something if there is no failure.
         Just these should fail, except src/dst."""
-        usededges = [element for element in list(self.path[0].keys())
-                     if (element[1], element[0]) not in list(self.path[0].keys()) or element[0] > element[1]]
+        usededges = [element for element in self.path['None']
+                     if (element[1], element[0]) not in self.path['None'] or element[0] > element[1]]
         for node in self.nodes:
             if str(node) not in 'SD' and len([str(node) for edge in usededges if str(node) in edge]) > 1:
                 self.interresting.append(str(node))
@@ -524,7 +526,6 @@ class Simulator:
         self.done = False
         self.donedict = {}
         prevfail = None
-        self.path[self.batch] = {}
         if isinstance(self.prevfail, int):
             prevfail = str(self.nodes[self.prevfail])
         elif isinstance(self.prevfail, tuple):
@@ -548,6 +549,7 @@ class Simulator:
         else:
             return True
         self.airtime[self.getidentifier()] = {}
+        self.path[self.getidentifier()] = {}
         self.batchhist.append(self.timestamp)
 
     def sendall(self):
@@ -594,7 +596,7 @@ class Simulator:
                 if str(node) == 'D':
                     self.done = node.isdone()
                 if node.isdone() and str(node) not in self.donedict and self.batch == node.getbatch():
-                    logging.info('Node {} done at timestep {}'.format(str(node), self.timestamp))
+                    logging.debug('Node {} done at timestep {}'.format(str(node), self.timestamp))
                     self.donedict[str(node)] = self.timestamp
                 self.ranklist[str(node)].append(node.getrank())
             self.timestamp += 1
@@ -609,12 +611,7 @@ class Simulator:
         with open('{}/airtime.json'.format(self.folder), 'w') as file:
             json.dump(self.airtime, file)
         with open('{}/path.json'.format(self.folder), 'w') as file:
-            path = {}
-            for generation in self.path:
-                path[generation] = {}
-                for link in self.path[generation]:
-                    path[generation][link[0] + link[1]] = self.path[generation][link]
-            json.dump(path, file)
+            json.dump(self.path, file)
         with open('{}/ranklist.json'.format(self.folder), 'w') as file:
             json.dump(self.ranklist, file)
         for kind in ['overhearing', 'real']:
@@ -660,7 +657,8 @@ if __name__ == '__main__':
     random.seed(1)
     llevel = logging.INFO
     logging.basicConfig(
-        filename='main.log', level=llevel, format='%(asctime)s %(levelname)s\t %(message)s', filemode='w')
+        filename='main.log', level=llevel, format='%(asctime)s %(threadName)s %(levelname)s\t %(message)s',
+        filemode='w')
     args = parse_args()
     sim = Simulator(jsonfile=args.json, coding=args.coding, fieldsize=args.fieldsize, sendall=args.sendam, own=args.own,
                     edgefail=args.failedge, nodefail=args.failnode, allfail=args.failall, randcof=args.randomnodes,

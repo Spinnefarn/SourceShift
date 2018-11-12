@@ -276,10 +276,10 @@ def plotgraph(folders=None):
             drawunused(net, pos)
             if fail == 'None':
                 p.savefig('{}/graph.pdf'.format(folder))    # Save it once without purple
-            alphaval = 1/max([len(value) for value in path[str(failhist[fail][1])].values()])
-            for edge in path[str(failhist[fail][1])]:
+            alphaval = 1/max([len(value) for value in path[fail].values()])
+            for edge in path[fail].keys():
                 nx.draw_networkx_edges(net, pos=pos, edgelist=[(edge[0], edge[1])], width=8,
-                                       alpha=len(path[str(failhist[fail][1])][edge]) * alphaval, edge_color='purple')
+                                       alpha=len(path[fail][edge]) * alphaval, edge_color='purple')
             p.savefig('{}/graphfail{}.pdf'.format(folder, fail))
             p.clf()
     p.close()
