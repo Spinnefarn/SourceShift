@@ -100,10 +100,9 @@ def runsim(config):
         while not done:
             done = sim.update()
         logging.info('{:3.0f} Seconds needed'.format(time.time() - beginbatch))
-        # sim.drawused()
         complete = sim.newbatch()
-    logging.info('{:3.0f} Seconds needed in total.'.format(time.time() - starttime))
     sim.writelogs()
+    logging.info('{:3.0f} Seconds needed in total.'.format(time.time() - starttime))
     with open('{}/config.json'.format(config['folder']), 'w') as f:
         json.dump(config, f)
 
@@ -130,7 +129,7 @@ if __name__ == '__main__':
     args = parse_args()
     llevel = logging.INFO
     logging.basicConfig(
-        filename='main.log', level=llevel, format='%(asctime)s %(levelname)s\t %(message)s',
+        filename='main.log', level=llevel, format='%(asctime)s %(processName)s\t %(levelname)s\t %(message)s',
         filemode='w')
     now = datetime.datetime.now()
     date = str(now.year) + str(now.month) + str(now.day)

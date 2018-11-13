@@ -229,13 +229,13 @@ class Simulator:
         else:
             maxval = 20 * self.batchhist[0]
         if len(self.batchhist) == 1:
-            if self.timestamp - self.batchhist[0] > maxval:
+            if self.timestamp - self.batchhist[0] >= maxval:
                 logging.info('Stopped batch after {} timesteps'.format(self.timestamp - self.batchhist[0]))
                 return False
             else:
                 return True
         else:
-            if self.timestamp - self.batchhist[-1] > maxval:
+            if self.timestamp - self.batchhist[-1] >= maxval:
                 logging.info('Stopped batch after {} timesteps'.format(self.timestamp - self.batchhist[-1]))
                 return False
             else:
@@ -298,58 +298,8 @@ class Simulator:
         for node in self.nodes:
             self.ranklist[str(node)] = []
 
-    def drawfailes(self, failhist=None):
-        """Draw batch duration over failed nodes/edges."""
-        plt.figure(figsize=(10, 10))
-        if failhist is not None:
-            plt.bar(range(len(failhist)), list(failhist.values()), label='MORE')
-            plt.bar(range(len(self.failhist)), list(self.failhist.values()), bottom=list(failhist.values()),
-                    label='MORELESS')
-        else:
-            plt.bar(range(len(self.failhist)), list(self.failhist.values()), label='MORE')
-        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-        plt.ylabel('Needed airtime in timeslots')
-        plt.xlabel('Failure')
-        plt.title('Needed airtime over failures for different protocols')
-        plt.xticks(range(len(self.failhist)), labels=self.failhist.keys(), rotation=90)
-        plt.tight_layout()
-        plt.savefig('{}/airtimefail.pdf'.format(self.folder))
-        plt.close()
-        return self.failhist
-
-    def drawunused(self):
-        """Draw initial graph."""
-        plt.figure(figsize=(10, 10))
-        nx.draw(self.graph, pos=self.pos, with_labels=True, node_size=1500, node_color="skyblue", node_shape="o",
-                alpha=0.7, linewidths=4, font_size=25, font_color="red", font_weight="bold", width=2,
-                edge_color="grey")
-        labels = {x: round(y, 1) for x, y in nx.get_node_attributes(self.graph, 'EOTX').items()}
-        nx.draw_networkx_labels(self.graph, pos=self.pos, labels=labels)
-        nx.draw_networkx_edge_labels(self.graph, pos=self.pos, edge_labels=nx.get_edge_attributes(self.graph, 'weight'))
-
-    def drawused(self):
-        """Highlight paths used in graph drawn in getready()."""
-        self.drawunused()
-        edgelist = []
-        currgen = list(self.path.keys())[-1]
-        for edge in self.path[currgen].keys():
-            edgelist.extend([edge for _ in self.path[currgen][edge]])
-        nx.draw_networkx_edges(self.graph, pos=self.pos, edgelist=edgelist, width=8, alpha=0.1,
-                               edge_color='purple')
-        if isinstance(self.prevfail, tuple):
-            fail = self.prevfail[0]
-        elif self.prevfail is None:
-            fail = self.prevfail
-        else:
-            fail = str(self.nodes[self.prevfail])
-        if self.own:
-            plt.savefig('{}/usedgraphownfail{}.pdf'.format(self.folder, fail))
-        else:
-            plt.savefig('{}/usedgraphfail{}.pdf'.format(self.folder, fail))
-        plt.close()
-
     def drawtrash(self, kind=None):
-        """Draw linear dependent packets over time and nodes"""
+        """Draw linear dependent packets over time and nodes. Do not use! Will move to plotter, at some time."""
         maxval, sumval = [], []
         width = self.batch * 2
         plt.figure(figsize=(width, 5))
@@ -402,22 +352,22 @@ class Simulator:
                     break
         elif isinstance(self.prevfail, tuple):
             try:
-                newidx = self.interresting.index(self.prevfail[0]) + 1
+                newidx = self.interresting.index(self.prevfail[0][0] + self.prevfail[0][1]) + 1
             except ValueError:
-                newidx = self.interresting.index((self.prevfail[0][1], self.prevfail[0][0])) + 1
+                newidx = self.interresting.index(self.prevfail[0][1] + self.prevfail[0][0]) + 1
             if len(self.interresting) > newidx:
                 newfail = self.interresting[newidx]
                 try:
-                    self.failedge(list(self.graph.edges).index(newfail))
+                    self.failedge(list(self.graph.edges).index((newfail[0], newfail[1])))
                 except ValueError:
                     self.failedge(list(self.graph.edges).index((newfail[1], newfail[0])))
             else:
                 return False
         else:
             newfail = self.interresting[self.interresting.index(str(self.nodes[self.prevfail])) + 1]
-            if isinstance(newfail, tuple):
+            if isinstance(newfail, str) and len(newfail) > 1:
                 try:
-                    self.failedge(list(self.graph.edges).index(newfail))
+                    self.failedge(list(self.graph.edges).index((newfail[0], newfail[1])))
                 except ValueError:
                     self.failedge(list(self.graph.edges).index((newfail[1], newfail[0])))
             else:
@@ -463,17 +413,19 @@ class Simulator:
         nodes = list(self.graph.edges)[edgenum]
         self.prevfail = (nodes, self.graph.edges[nodes]['weight'])
         self.graph.edges[nodes]['weight'] = 0
-        logging.info('Edge {} disabled'.format(str(nodes)))
+        logging.info('Edge {} disabled'.format(nodes[0] + nodes[1]))
 
     def filterinterresting(self):
         """Get all edges and nodes, which do something if there is no failure.
         Just these should fail, except src/dst."""
+        self.interresting = []
         usededges = [element for element in self.path['None']
-                     if (element[1], element[0]) not in self.path['None'] or element[0] > element[1]]
+                     if element[1] + element[0] not in self.path['None'] or element[0] > element[1]]
         for node in self.nodes:
             if str(node) not in 'SD' and len([str(node) for edge in usededges if str(node) in edge]) > 1:
                 self.interresting.append(str(node))
         self.interresting.extend(usededges)
+        logging.debug('Interresting failures are: {}'.format(self.interresting))
 
     def getgraph(self):
         """Return graph."""
@@ -657,7 +609,7 @@ if __name__ == '__main__':
     random.seed(1)
     llevel = logging.INFO
     logging.basicConfig(
-        filename='main.log', level=llevel, format='%(asctime)s %(threadName)s %(levelname)s\t %(message)s',
+        filename='main.log', level=llevel, format='%(asctime)s %(levelname)s\t %(message)s',
         filemode='w')
     args = parse_args()
     sim = Simulator(jsonfile=args.json, coding=args.coding, fieldsize=args.fieldsize, sendall=args.sendam, own=args.own,
@@ -671,12 +623,10 @@ if __name__ == '__main__':
         while not done:
             done = sim.update()
         logging.info('{:3.0f} Seconds needed'.format(time.time() - beginbatch))
-        sim.drawused()
         complete = sim.newbatch()
     logging.info('{:3.0f} Seconds needed in total.'.format(time.time() - starttime))
     # sim.drawtrash()
     # sim.drawtrash('real')
-    sim.drawfailes()
     sim.writelogs()
     with open('path.json', 'w') as f:
         newdata = {}

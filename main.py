@@ -108,12 +108,10 @@ if __name__ == '__main__':
         while not done:
             done = sim.update()
         logging.info('{:3.0f} Seconds needed'.format(time.time() - beginbatch))
-        sim.drawused()
         complete = sim.newbatch()
     logging.info('{:3.0f} Seconds needed in total.'.format(time.time() - starttime))
     # sim.drawtrash()
     # sim.drawtrash('real')
-    sim.drawfailes()
     with open('{}/path.json'.format(args.folder), 'w') as f:
         newdata = {}
         for batch in sim.getpath():
