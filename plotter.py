@@ -123,20 +123,20 @@ def plotairtime(mainfolder=None, folders=None):
     morestdlist = [morestd[key] for key in sorted(morestd.keys())]
     morelessplotlist = [morelessplot[key] for key in sorted(morelessplot.keys())]
     morelessstdlist = [morelessstd[key] for key in sorted(morelessstd.keys())]
-    p.bar(range(len(moreplotlist)), moreplotlist, label='MORE', alpha=0.5, yerr=morestdlist, ecolor='blue')
-    p.bar(range(len(morelessplotlist)), morelessplotlist, label='MORELESS', alpha=0.5, yerr=morelessstdlist,
+    width = 0.4
+    ind = [x + width for x in range(len(morelessplotlist))]
+    p.bar(range(len(moreplotlist)), moreplotlist, width=width, label='MORE', alpha=0.5, yerr=morestdlist, ecolor='blue')
+    p.bar(ind, morelessplotlist, width=width, label='MORELESS', alpha=0.5, yerr=morelessstdlist,
           ecolor='yellow')
-    p.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    # p.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    p.legend(loc='upper right')
     p.ylabel('Needed airtime in timeslots')
     p.xlabel('Failure')
-    # p.yscale('log')
-    if globconfig['maxduration']:
-        p.ylim([0, globconfig['maxduration']])
-    else:
-        p.ylim(bottom=0)
+    p.yscale('log')
     p.xlim([-1, len(moreplot)])
     p.title('Needed transmissions over failures for different protocols')
-    p.xticks(range(len(moreplot)), labels=sorted(moreplot.keys()), rotation=90)
+    ind = [x + width/2 for x in range(len(moreplot))]
+    p.xticks(ind, labels=sorted(moreplot.keys()), rotation=90)
     p.tight_layout()
     p.savefig('{}/airtimefail.pdf'.format(mainfolder))
     p.close()
@@ -209,10 +209,12 @@ def plotfailhist(mainfolder=None, folders=None):
     morestdlist = [morestd[key] for key in sorted(morestd.keys())]
     morelessplotlist = [morelessplot[key] for key in sorted(morelessplot.keys())]
     morelessstdlist = [morelessstd[key] for key in sorted(morelessstd.keys())]
-    p.bar(range(len(moreplotlist)), moreplotlist, label='MORE', alpha=0.5, yerr=morestdlist, ecolor='blue')
-    p.bar(range(len(morelessplotlist)), morelessplotlist, label='MORELESS', alpha=0.5, yerr=morelessstdlist,
-          ecolor='yellow')
-    p.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    width = 0.4
+    ind = [x + width for x in range(len(morelessplotlist))]
+    p.bar(range(len(moreplotlist)), moreplotlist, width=width, label='MORE', alpha=0.5, yerr=morestdlist, ecolor='blue')
+    p.bar(ind, morelessplotlist, width=width, label='MORELESS', alpha=0.5, yerr=morelessstdlist, ecolor='yellow')
+    # p.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    p.legend(loc='upper right')
     p.ylabel('Needed airtime in timeslots')
     p.xlabel('Failure')
     # p.yscale('log')
@@ -222,7 +224,8 @@ def plotfailhist(mainfolder=None, folders=None):
         p.ylim(bottom=0)
     p.xlim([-1, len(moreplot)])
     p.title('Needed timeslots over failures for different protocols')
-    p.xticks(range(len(moreplot)), labels=sorted(moreplot.keys()), rotation=90)
+    ind = [x + width/2 for x in range(len(moreplot))]
+    p.xticks(ind, labels=sorted(moreplot.keys()), rotation=90)
     p.tight_layout()
     p.savefig('{}/timeslotfail.pdf'.format(mainfolder))
     p.close()
@@ -232,7 +235,7 @@ def plotgraph(folders=None):
     """Plots used and unused network graphs."""
     if folders is None:
         quit(1)
-    p.figure()
+    p.figure(figsize=(10, 10))
     for folder in folders:
         configlist = []
         graph, path, eotx, failhist = readgraph(folder)
@@ -246,7 +249,6 @@ def plotgraph(folders=None):
         net.add_weighted_edges_from(configlist)
         for node in net.nodes:
             net.nodes[node]['EOTX'] = eotx[node][0]
-        p.figure(figsize=(10, 10))
         prevfail = None
         for fail in failhist.keys():
             if fail != 'None':
@@ -291,12 +293,12 @@ if __name__ == '__main__':
     # date = str(2018118)
     folderlist = []
     folderlst = []
-    for i in range(2):
+    for i in range(10):
         # folderlist.append('{}/graph{}/test'.format(date, i))
-        folderlist.extend(['{}/graph{}/test{}'.format(date, i, j) for j in range(20)])
+        folderlist.extend(['{}/graph{}/test{}'.format(date, i, j) for j in range(40)])
         mfolder = '{}/graph{}'.format(date, i)
         # folderlst.append('test'.format(i))
-        folderlst.extend(['test{}'.format(j) for j in range(20)])
+        folderlst.extend(['test{}'.format(j) for j in range(40)])
         plotairtime(mfolder, folderlst)
         plotfailhist(mfolder, folderlst)
-    plotgraph(folders=folderlist)
+    # plotgraph(folders=folderlist)

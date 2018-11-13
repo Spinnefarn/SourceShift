@@ -125,6 +125,14 @@ def cleanfolder(folder):
             os.remove(os.path.join(folder, f))
 
 
+def plotall(mfolder, counter, liste):
+    """Create a process to do the plots."""
+    plotter.plotgraph(['{0}/graph{1}/test'.format(mfolder, counter)])
+    plotter.plotgraph(['{0}/graph{1}/{2}'.format(mfolder, counter, folder) for folder in liste])
+    plotter.plotairtime('{0}/graph{1}'.format(mfolder, counter), liste)
+    plotter.plotfailhist('{0}/graph{1}'.format(mfolder, counter), liste)
+
+
 if __name__ == '__main__':
     args = parse_args()
     llevel = logging.INFO
@@ -133,6 +141,7 @@ if __name__ == '__main__':
         filemode='w')
     now = datetime.datetime.now()
     date = str(now.year) + str(now.month) + str(now.day)
+    plot = None
     for i in range(2):
         logging.info('Created new graph at graph{}'.format(i))
         confdict = {'json': args.json, 'randconf': args.amount, 'coding': args.coding, 'fieldsize': args.fieldsize,
@@ -141,7 +150,6 @@ if __name__ == '__main__':
                     'random': args.random}
         cleanfolder(confdict['folder'])
         runsim(confdict)
-        plotter.plotgraph(['{}/graph{}/test'.format(date, i)])
         with open('{}/graph{}/test/failhist.json'.format(date, i)) as file:
             failhist = json.loads(file.read())
         if args.random is None:
@@ -173,7 +181,10 @@ if __name__ == '__main__':
             pass
         for process in processes:
             process.join()
-        plotter.plotgraph(['{}/graph{}/{}'.format(date, i, folder) for folder in folderlist])
-        plotter.plotairtime('{0}/graph{1}'.format(str(date), str(i)), folderlist)
-        plotter.plotfailhist('{0}/graph{1}'.format(str(date), str(i)), folderlist)
+        if plot is not None and plot.is_alive():
+            plot.join()
+        plot = Process(target=plotall, args=(date, i, folderlist))
+        plot.start()
+    if plot is not None and plot.is_alive():
+        plot.join()
     logging.info('Everything done')
