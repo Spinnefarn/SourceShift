@@ -46,7 +46,12 @@ def parse_args():
     parser.add_argument('-o', '--own',
                         dest='own',
                         type=bool,
-                        help='Use own approach or MORE.',
+                        help='Use own routing to create more spam at network',
+                        default=False)
+    parser.add_argument('-s', '--sourceshift',
+                        dest='sourceshift',
+                        type=bool,
+                        help='Enable source shifting',
                         default=False)
     parser.add_argument('-fe', '--failedge',
                         dest='failedge',
@@ -60,6 +65,7 @@ def parse_args():
                         default=False)
     parser.add_argument('-fa', '--failall',
                         dest='failall',
+                        type=bool,
                         help='Everything should fail(just one by time.',
                         default=False)
     parser.add_argument('-F', '--folder',
@@ -87,8 +93,9 @@ def readconf(jsonfile):
 class Simulator:
     """Round based simulator to simulate traffic in meshed network."""
     def __init__(self, jsonfile=None, coding=None, fieldsize=2, sendall=0, own=True, edgefail=None, nodefail=None,
-                 allfail=False, randcof=(10, 0.5), folder='.', maxduration=0, randomseed=None):
+                 allfail=False, randcof=(10, 0.5), folder='.', maxduration=0, randomseed=None, sourceshift=False):
         self.airtime = {'None': {}}
+        self.sourceshift = sourceshift
         self.edgefail = edgefail
         self.nodefail = nodefail
         self.allfail = allfail
@@ -346,10 +353,18 @@ class Simulator:
     def failall(self):
         """Kill one of all."""
         if self.prevfail is None:
-            for node in self.nodes:
-                if str(node) == self.interresting[0]:
-                    self.failnode(self.nodes.index(node))
-                    break
+            if len(self.interresting[0]) == 1:
+                for node in self.nodes:
+                    if str(node) == self.interresting[0]:
+                        self.failnode(self.nodes.index(node))
+                        break
+            elif len(self.interresting[0]) == 2:
+                try:
+                    self.failedge(list(self.graph.edges).index((self.interresting[0][0], self.interresting[0][1])))
+                except ValueError:
+                    self.failedge(list(self.graph.edges).index((self.interresting[0][1], self.interresting[0][0])))
+            else:
+                logging.error('Something crazy in interesting list: {}'.format(self.interresting[0]))
         elif isinstance(self.prevfail, tuple):
             try:
                 newidx = self.interresting.index(self.prevfail[0][0] + self.prevfail[0][1]) + 1
@@ -537,7 +552,7 @@ class Simulator:
     def update(self):
         """Update one timestep."""
         if not self.done:
-            if self.own:
+            if self.sourceshift:
                 self.checkstate()
             if self.sendam:
                 self.sendsel()
@@ -614,7 +629,7 @@ if __name__ == '__main__':
     args = parse_args()
     sim = Simulator(jsonfile=args.json, coding=args.coding, fieldsize=args.fieldsize, sendall=args.sendam, own=args.own,
                     edgefail=args.failedge, nodefail=args.failnode, allfail=args.failall, randcof=args.randomnodes,
-                    folder=args.folder)
+                    folder=args.folder, sourceshift=args.sourceshift)
     starttime = time.time()
     complete = False
     while not complete:

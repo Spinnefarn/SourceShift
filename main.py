@@ -49,6 +49,11 @@ def parse_args():
                         nargs=2,
                         help='Which edge should fail?',
                         default=None)
+    parser.add_argument('-s', '--sourceshift',
+                        dest='sourceshift',
+                        type=bool,
+                        help='Enable source shifting',
+                        default=False)
     parser.add_argument('-fn', '--failnode',
                         dest='failnode',
                         type=str,
@@ -98,7 +103,7 @@ if __name__ == '__main__':
     sim = Simulator(jsonfile=args.json, coding=args.coding, fieldsize=args.fieldsize,
                     sendall=args.sendam, own=args.own, edgefail=args.failedge, nodefail=args.failnode,
                     allfail=args.failall, randcof=args.randomnodes, folder=args.folder,
-                    maxduration=args.maxduration, randomseed=randomnumber)
+                    maxduration=args.maxduration, randomseed=randomnumber, sourceshift=args.sourceshift)
 
     starttime = time.time()
     complete = False

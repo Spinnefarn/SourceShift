@@ -47,6 +47,11 @@ def parse_args():
                         type=bool,
                         help='Use own approach or MORE.',
                         default=False)
+    parser.add_argument('-s', '--sourceshift',
+                        dest='sourceshift',
+                        type=bool,
+                        help='Enable source shifting',
+                        default=False)
     parser.add_argument('-m', '--multiprocessing',
                         dest='multiprocessing',
                         type=bool,
@@ -90,7 +95,8 @@ def runsim(config):
     sim = Simulator(jsonfile=config['json'], coding=config['coding'], fieldsize=config['fieldsize'],
                     sendall=config['sendam'], own=config['own'], edgefail=config['failedge'],
                     nodefail=config['failnode'], allfail=config['failall'], randcof=config['randconf'],
-                    folder=config['folder'], maxduration=config['maxduration'], randomseed=config['random'])
+                    folder=config['folder'], maxduration=config['maxduration'], randomseed=config['random'],
+                    sourceshift=config['sourceshift'])
     logging.info('Start simulator {}'.format(config['folder']))
     starttime = time.time()
     complete = False
@@ -125,6 +131,21 @@ def cleanfolder(folder):
             os.remove(os.path.join(folder, f))
 
 
+def setmode(config, number):
+    """Set config mode."""
+    mode = ['m', 'o', 'ss', 'oss']
+    number %= len(mode)
+    if mode[number] == 'm':
+        config['own'], config['sourceshift'] = False, False
+    elif mode[number] == 'o':
+        config['own'], config['sourceshift'] = True, False
+    elif mode[number] == 'ss':
+        config['own'], config['sourceshift'] = False, True
+    elif mode[number] == 'oss':
+        config['own'], config['sourceshift'] = True, True
+    return config
+
+
 def plotall(mfolder, counter, liste):
     """Create a process to do the plots."""
     plotter.plotgraph(['{0}/graph{1}/test'.format(mfolder, counter)])
@@ -147,7 +168,7 @@ if __name__ == '__main__':
         confdict = {'json': args.json, 'randconf': args.amount, 'coding': args.coding, 'fieldsize': args.fieldsize,
                     'sendam': args.sendam, 'own': args.own, 'failedge': args.failedge, 'failnode': args.failnode,
                     'failall': False, 'folder': '{}/graph{}/test'.format(date, i), 'maxduration': args.maxduration,
-                    'random': args.random}
+                    'random': args.random, 'sourceshift': args.sourceshift}
         cleanfolder(confdict['folder'])
         runsim(confdict)
         with open('{}/graph{}/test/failhist.json'.format(date, i)) as file:
@@ -160,7 +181,7 @@ if __name__ == '__main__':
         confdict = {'json': args.json, 'randconf': args.amount, 'coding': args.coding, 'fieldsize': args.fieldsize,
                     'sendam': args.sendam, 'own': args.own, 'failedge': args.failedge, 'failnode': args.failnode,
                     'failall': True, 'folder': args.folder, 'maxduration': args.maxduration,
-                    'random': randomnumber}
+                    'random': randomnumber, 'sourceshift': args.sourceshift}
         logging.info('Randomseed = ' + str(randomnumber))
         folderlist = ['test{}'.format(i) for i in range(4)]
         processes = []
@@ -169,7 +190,7 @@ if __name__ == '__main__':
                 cleanfolder('{}/graph{}/{}'.format(date, i, element))
                 confdict['json'] = '{}/graph{}/test/graph.json'.format(date, i)
                 confdict['folder'] = '{}/graph{}/{}'.format(date, i, element)
-                confdict['own'] = not confdict['own']
+                confdict = setmode(confdict, element[-1])
                 confdict['maxduration'] = 20 * failhist['None'][0]
                 while True:
                     if cpu_count() > len(active_children()):
