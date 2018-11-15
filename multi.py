@@ -92,10 +92,11 @@ def parse_args():
 
 def runsim(config):
     """Run simulation based on arguments."""
+    randomseed = random.randint(0, 1000000)
     sim = Simulator(jsonfile=config['json'], coding=config['coding'], fieldsize=config['fieldsize'],
                     sendall=config['sendam'], own=config['own'], edgefail=config['failedge'],
                     nodefail=config['failnode'], allfail=config['failall'], randcof=config['randconf'],
-                    folder=config['folder'], maxduration=config['maxduration'], randomseed=config['random'],
+                    folder=config['folder'], maxduration=config['maxduration'], randomseed=randomseed,
                     sourceshift=config['sourceshift'])
     logging.info('Start simulator {}'.format(config['folder']))
     starttime = time.time()

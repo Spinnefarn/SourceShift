@@ -2,7 +2,6 @@
 # coding=utf-8
 """Main script, this will supervise the simulation."""
 import argparse
-import json
 import time
 import os
 from Simulator import Simulator
@@ -100,7 +99,7 @@ if __name__ == '__main__':
         for file in filelist:
             os.remove(os.path.join(args.folder, file))
     import logging
-    llevel = logging.INFO
+    llevel = logging.DEBUG
     logging.basicConfig(
         filename='{}/main.log'.format(args.folder), level=llevel, format='%(asctime)s %(levelname)s\t %(message)s',
         filemode='w')

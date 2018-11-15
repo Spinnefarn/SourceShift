@@ -21,6 +21,49 @@ def drawunused(net=None, pos=None):
     nx.draw_networkx_edge_labels(net, pos=pos, edge_labels=nx.get_edge_attributes(net, 'weight'))
 
 
+def parseairtime(dic):
+    """Parse given airtime dict."""
+    plot, std = {}, {}
+    firstfolder = list(dic.keys())[0]
+    for fail in dic[firstfolder].keys():
+        counter = []
+        for folder in dic.keys():
+            try:
+                counter.append(sum([len(dic[folder][fail][node])
+                                    for node in dic[folder][fail].keys()]))
+            except KeyError:
+                pass
+        plot[fail] = statistics.mean(counter)
+        if len(counter) > 1:
+            std[fail] = statistics.stdev(counter)
+        else:
+            std[fail] = 0
+    return plot, std
+
+
+def parsefail(dic):
+    """Parse given failhist dict."""
+    plotlist, stdlist = {}, {}
+    if len(dic) > 1:
+        firstfolder = list(dic.keys())[0]
+        for fail in dic[firstfolder].keys():
+            counter = []
+            for folder in dic.keys():
+                try:
+                    counter.append(dic[folder][fail])
+                except KeyError:
+                    pass
+            plotlist[fail] = statistics.mean(counter)
+            if len(counter) > 1:
+                stdlist[fail] = statistics.stdev(counter)
+            else:
+                stdlist[fail] = 0
+    else:
+        plotlist = dic[list(dic.keys())[0]]
+        stdlist = {key: 0 for key in plotlist.keys()}
+    return plotlist, stdlist
+
+
 def readairtime(folder):
     """Read logs from folder."""
     airtime, config, failhist = None, None, None
@@ -69,8 +112,8 @@ def plotairtime(mainfolder=None, folders=None):
     if mainfolder is None:
         mainfolder = ''
     p.figure(figsize=(20, 10))
-    moredict, morelessdict = {}, {}
     globconfig = {}
+    incdicts = {}
     for folder in folders:
         airtime, config = readairtime('{}/{}'.format(mainfolder, folder))
         if airtime is None or config is None:
@@ -78,65 +121,53 @@ def plotairtime(mainfolder=None, folders=None):
             continue
         elif not globconfig:
             globconfig = config
-        if config['own']:
-            morelessdict[folder] = airtime
+        if config['own'] and config['sourceshift']:
+            if 'MORELESS' not in incdicts.keys():
+                incdicts['MORELESS'] = {}
+            incdicts['MORELESS'][folder] = airtime
+        elif config['own']:
+            if 'own' not in incdicts.keys():
+                incdicts['own'] = {}
+            incdicts['own'][folder] = airtime
+        elif config['sourceshift']:
+            if 'ss' not in incdicts.keys():
+                incdicts['ss'] = {}
+            incdicts['ss'][folder] = airtime
+        elif config['david']:
+            if 'MOREresilience' not in incdicts.keys():
+                incdicts['MOREresilience'] = {}
+            incdicts['MOREresilience'][folder] = airtime
         else:
-            moredict[folder] = airtime
-    moreplot, morestd = {}, {}
-    firstfolder = list(moredict.keys())[1]
-    for fail in moredict[firstfolder].keys():
-        counter = []
-        for folder in moredict.keys():
-            try:
-                counter.append(sum([len(moredict[folder][fail][node]) for node in moredict[folder][fail].keys()]))
-            except KeyError:
-                pass
-        moreplot[fail] = statistics.mean(counter)
-        if len(counter) > 1:
-            morestd[fail] = statistics.stdev(counter)
-        else:
-            morestd[fail] = 0
-    morelessplot, morelessstd = {}, {}
-    firstfolder = list(morelessdict.keys())[0]
-    for fail in morelessdict[firstfolder].keys():
-        counter = []
-        for folder in morelessdict.keys():
-            try:
-                counter.append(sum([len(morelessdict[folder][fail][node])
-                                    for node in morelessdict[folder][fail].keys()]))
-            except KeyError:
-                pass
-        morelessplot[fail] = statistics.mean(counter)
-        if len(counter) > 1:
-            morelessstd[fail] = statistics.stdev(counter)
-        else:
-            morelessstd[fail] = 0
-    for fail in morelessplot:
-        if fail not in moreplot or moreplot[fail] == 0:
-            moreplot[fail] = moreplot['None']
-            morestd[fail] = morestd['None']
-    for fail in moreplot:
-        if fail not in morelessplot:
-            morelessplot[fail] = morelessplot['None']
-            morelessstd[fail] = morelessstd['None']
-    moreplotlist = [moreplot[key] for key in sorted(moreplot.keys())]
-    morestdlist = [morestd[key] for key in sorted(morestd.keys())]
-    morelessplotlist = [morelessplot[key] for key in sorted(morelessplot.keys())]
-    morelessstdlist = [morelessstd[key] for key in sorted(morelessstd.keys())]
-    width = 0.4
-    ind = [x + width for x in range(len(morelessplotlist))]
-    p.bar(range(len(moreplotlist)), moreplotlist, width=width, label='MORE', alpha=0.5, yerr=morestdlist, ecolor='blue')
-    p.bar(ind, morelessplotlist, width=width, label='MORELESS', alpha=0.5, yerr=morelessstdlist,
-          ecolor='yellow')
-    # p.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+            if 'MORE' not in incdicts.keys():
+                incdicts['MORE'] = {}
+            incdicts['MORE'][folder] = airtime
+    plots, std = {}, {}
+    failures = set()
+    for protocol, dic in incdicts.items():
+        plots[protocol], std[protocol] = parseairtime(dic)
+        failures |= {fail for fail in plots[protocol]}
+    for fail in failures:
+        for protocol in plots:
+            if fail not in plots[protocol].keys():
+                plots[protocol][fail] = plots[protocol]['None']
+                std[protocol][fail] = std[protocol]['None']
+    plotlist, stdlist = {}, {}
+    for protocol in plots:
+        plotlist[protocol] = [plots[protocol][key] for key in sorted(plots[protocol].keys())]
+        stdlist[protocol] = [std[protocol][key] for key in sorted(std[protocol].keys())]
+    width = 0.9/len(plots.keys())
+    for protocol in plotlist:
+        ind = [x + list(sorted(plots.keys())).index(protocol) * width for x in range(len(failures))]
+        p.bar(ind, plotlist[protocol], width=width, label=protocol, yerr=stdlist[protocol],
+              error_kw={'elinewidth': width/5})
     p.legend(loc='upper right')
     p.ylabel('Needed airtime in timeslots')
     p.xlabel('Failure')
     p.yscale('log')
-    p.xlim([-1, len(moreplot)])
+    p.xlim([-1, len(failures)])
     p.title('Needed transmissions over failures for different protocols')
-    ind = [x + width/2 for x in range(len(moreplot))]
-    p.xticks(ind, labels=sorted(moreplot.keys()), rotation=90)
+    ind = [x + width/2 for x in range(len(failures))]
+    p.xticks(ind, labels=sorted(plots[list(plots.keys())[0]].keys()), rotation=90)
     p.tight_layout()
     p.savefig('{}/airtimefail.pdf'.format(mainfolder))
     p.close()
@@ -150,82 +181,67 @@ def plotfailhist(mainfolder=None, folders=None):
         mainfolder = ''
     p.figure(figsize=(20, 10))
     failhist, config = {}, {}
-    moredict, morelessdict = {}, {}
+    incdicts = {}
     for folder in folders:
         try:
             failhist, config = readfailhist('{}/{}'.format(mainfolder, folder))
         except FileNotFoundError:
             print('No logs found at {}/{}'.format(mainfolder, folder))
             continue
-        if config['own']:
-            morelessdict[folder] = {key: value[0] for key, value in failhist.items()}
+        if config['own'] and config['sourceshift']:
+            if 'MORELESS' not in incdicts.keys():
+                incdicts['MORELESS'] = {}
+            incdicts['MORELESS'][folder] = {key: value[0] for key, value in failhist.items()}
+        elif config['own']:
+            if 'own' not in incdicts.keys():
+                incdicts['own'] = {}
+            incdicts['own'][folder] = {key: value[0] for key, value in failhist.items()}
+        elif config['sourceshift']:
+            if 'ss' not in incdicts.keys():
+                incdicts['ss'] = {}
+            incdicts['ss'][folder] = {key: value[0] for key, value in failhist.items()}
+        elif config['david']:
+            if 'MOREresilience' not in incdicts.keys():
+                incdicts['MOREresilience'] = {}
+            incdicts['MOREresilience'][folder] = {key:value[0] for key, value in failhist.items()}
         else:
-            moredict[folder] = {key: value[0] for key, value in failhist.items()}
-    moreplot, morestd = {}, {}
-    if len(moredict) > 1:
-        firstfolder = list(moredict.keys())[0]
-        for fail in moredict[firstfolder].keys():
-            counter = []
-            for folder in moredict.keys():
-                try:
-                    counter.append(moredict[folder][fail])
-                except KeyError:
-                    pass
-            moreplot[fail] = statistics.mean(counter)
-            if len(counter) > 1:
-                morestd[fail] = statistics.stdev(counter)
-            else:
-                morestd[fail] = 0
-    else:
-        moreplot = moredict[list(moredict.keys())[0]]
-        morestd = {key: 0 for key in moreplot.keys()}
-    morelessplot, morelessstd = {}, {}
-    if len(morelessdict) > 1:
-        firstfolder = list(morelessdict.keys())[0]
-        for fail in morelessdict[firstfolder].keys():
-            counter = []
-            for folder in morelessdict.keys():
-                try:
-                    counter.append(morelessdict[folder][fail])
-                except KeyError:
-                    pass
-            morelessplot[fail] = statistics.mean(counter)
-            if len(counter) > 1:
-                morelessstd[fail] = statistics.stdev(counter)
-            else:
-                morelessstd[fail] = 0
-    else:
-        morelessplot = morelessdict[list(morelessdict.keys())[0]]
-        morelessstd = {key: 0 for key in morelessplot.keys()}
-    for fail in morelessplot:
-        if fail not in moreplot:
-            moreplot[fail] = moreplot['None']
-            morestd[fail] = morestd['None']
-    for fail in moreplot:
-        if fail not in morelessplot:
-            morelessplot[fail] = morelessplot['None']
-            morelessstd[fail] = morelessstd['None']
-    moreplotlist = [moreplot[key] for key in sorted(moreplot.keys())]
-    morestdlist = [morestd[key] for key in sorted(morestd.keys())]
-    morelessplotlist = [morelessplot[key] for key in sorted(morelessplot.keys())]
-    morelessstdlist = [morelessstd[key] for key in sorted(morelessstd.keys())]
-    width = 0.4
-    ind = [x + width for x in range(len(morelessplotlist))]
-    p.bar(range(len(moreplotlist)), moreplotlist, width=width, label='MORE', alpha=0.5, yerr=morestdlist, ecolor='blue')
-    p.bar(ind, morelessplotlist, width=width, label='MORELESS', alpha=0.5, yerr=morelessstdlist, ecolor='yellow')
-    # p.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+            if 'MORE' not in incdicts.keys():
+                incdicts['MORE'] = {}
+            incdicts['MORE'][folder] = {key: value[0] for key, value in failhist.items()}
+    failures = set()
+    plots = {}
+    std = {}
+    for protocol, dic in incdicts.items():
+        plots[protocol], std[protocol] = parsefail(dic)
+        failures |= {fail for fail in plots[protocol]}
+    for fail in failures:
+        for protocol in plots:
+            if fail not in plots[protocol].keys():
+                plots[protocol][fail] = plots[protocol]['None']
+                std[protocol][fail] = std[protocol]['None']
+    plotlist, stdlist = {}, {}
+    for protocol in plots:
+        plotlist[protocol] = [plots[protocol][key] for key in sorted(plots[protocol].keys())]
+        stdlist[protocol] = [std[protocol][key] for key in sorted(std[protocol].keys())]
+
+    width = 0.9/len(plots.keys())
+    for protocol in plotlist:
+        ind = [x + list(sorted(plots.keys())).index(protocol) * width for x in range(len(failures))]
+        p.bar(ind, plotlist[protocol], width=width, label=protocol, yerr=stdlist[protocol],
+              error_kw={'elinewidth': width/5})
     p.legend(loc='upper right')
-    p.ylabel('Needed airtime in timeslots')
+    p.yscale('log')
+    p.ylabel('Needed Latency in timeslots')
     p.xlabel('Failure')
     # p.yscale('log')
     if config['maxduration']:
         p.ylim([0, config['maxduration']])
     else:
         p.ylim(bottom=0)
-    p.xlim([-1, len(moreplot)])
+    p.xlim([-1, len(failures)])
     p.title('Needed timeslots over failures for different protocols')
-    ind = [x + width/2 for x in range(len(moreplot))]
-    p.xticks(ind, labels=sorted(moreplot.keys()), rotation=90)
+    ind = [x + 0.5 for x in range(len(plots[list(plots.keys())[0]]))]
+    p.xticks(ind, labels=sorted(plots[list(plots.keys())[0]].keys()), rotation=90)
     p.tight_layout()
     p.savefig('{}/timeslotfail.pdf'.format(mainfolder))
     p.close()
@@ -289,8 +305,8 @@ def plotgraph(folders=None):
 
 if __name__ == '__main__':
     now = datetime.datetime.now()
-    date = int(str(now.year) + str(now.month) + str(now.day))
-    # date = str(2018118)
+    # date = int(str(now.year) + str(now.month) + str(now.day))
+    date = '../Results/20181115'
     folderlist = []
     folderlst = []
     for i in range(5):
@@ -301,4 +317,4 @@ if __name__ == '__main__':
         folderlst.extend(['test{}'.format(j) for j in range(40)])
         plotairtime(mfolder, folderlst)
         plotfailhist(mfolder, folderlst)
-    plotgraph(folders=folderlist)
+    # plotgraph(folders=folderlist)

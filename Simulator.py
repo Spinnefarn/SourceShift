@@ -8,7 +8,6 @@ from matplotlib import use
 use('Agg')
 import matplotlib.pylab as plt
 import random
-import time
 import os
 import logging
 
@@ -33,6 +32,7 @@ class Simulator:
         self.edgefail = edgefail
         self.nodefail = nodefail
         self.allfail = allfail
+        logging.debug('Random seed: '.format(randomseed))
         self.random = randomseed
         self.maxduration = maxduration
         self.config = {}
