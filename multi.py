@@ -139,15 +139,15 @@ def setmode(config, number):
     except (TypeError, ValueError):
         number = 0
     if mode[number] == 'm':
-        config['own'], config['sourceshift'], config['david'], config['multi'] = False, False, False, False
+        config['own'], config['sourceshift'], config['david'] = False, False, 0.0
     elif mode[number] == 'o':
-        config['own'], config['sourceshift'], config['david'], config['multi'] = True, False, False, False
+        config['own'], config['sourceshift'], config['david'] = True, False, 0.0
     elif mode[number] == 'ss':
-        config['own'], config['sourceshift'], config['david'], config['multi'] = False, True, False, False
+        config['own'], config['sourceshift'], config['david'] = False, True, 0.0
     elif mode[number] == 'oss':
-        config['own'], config['sourceshift'], config['david'], config['multi'] = True, True, False, False
+        config['own'], config['sourceshift'], config['david'] = True, True, 0.0
     elif mode[number] == 'david':
-        config['own'], config['sourceshift'], config['david'], config['multi'] = False, False, True, False
+        config['own'], config['sourceshift'], config['david'] = False, False, 1.0
     return config
 
 
@@ -168,7 +168,7 @@ if __name__ == '__main__':
     now = datetime.datetime.now()
     date = str(now.year) + str(now.month) + str(now.day)
     plot = None
-    for i in range(2):
+    for i in range(5):
         logging.info('Created new graph at graph{}'.format(i))
         confdict = {'json': args.json, 'randconf': args.amount, 'coding': args.coding, 'fieldsize': args.fieldsize,
                     'sendam': args.sendam, 'own': args.own, 'failedge': args.failedge, 'failnode': args.failnode,
@@ -188,7 +188,7 @@ if __name__ == '__main__':
                     'failall': True, 'folder': args.folder, 'maxduration': args.maxduration,
                     'random': randomnumber, 'sourceshift': args.sourceshift}
         logging.info('Randomseed = ' + str(randomnumber))
-        folderlist = ['test{}'.format(i) for i in range(4)]
+        folderlist = ['test{}'.format(i) for i in range(40)]
         processes = []
         try:
             for element in folderlist:

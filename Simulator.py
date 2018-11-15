@@ -1,7 +1,6 @@
 #!/usr/bin/python
 # coding=utf-8
 """Main script, we will see what this will do."""
-import argparse
 import components
 import json
 import networkx as nx
@@ -12,73 +11,6 @@ import random
 import time
 import os
 import logging
-
-
-def parse_args():
-    """Parse commandline arguments."""
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-j', '--json',
-                        dest='json',
-                        type=str,
-                        help='should contain network configuration',
-                        default=None)
-    parser.add_argument('-n', '--randomnodes',
-                        dest='randomnodes',
-                        type=tuple,
-                        nargs=2,
-                        help='In case of no json given how many random nodes should be created and max dist for links.',
-                        default=(10, 0.1))
-    parser.add_argument('-c', '--coding',
-                        dest='coding',
-                        type=int,
-                        help='Batch size for coded packets. Default None(without coding)',
-                        default=8)
-    parser.add_argument('-f', '--fieldsize',
-                        dest='fieldsize',
-                        type=int,
-                        help='Fieldsize used for coding. 2 to the power of x, x∈(1, 4, 8, 16)',
-                        default=1)
-    parser.add_argument('-sa', '--sendamount',
-                        dest='sendam',
-                        type=int,
-                        help='Amount of nodes allowed to send per timeslot.',
-                        default=0)
-    parser.add_argument('-o', '--own',
-                        dest='own',
-                        type=bool,
-                        help='Use own routing to create more spam at network',
-                        default=False)
-    parser.add_argument('-s', '--sourceshift',
-                        dest='sourceshift',
-                        type=bool,
-                        help='Enable source shifting',
-                        default=False)
-    parser.add_argument('-fe', '--failedge',
-                        dest='failedge',
-                        type=bool,
-                        help='Shut a random edge fail for higher batches.',
-                        default=False)
-    parser.add_argument('-fn', '--failnode',
-                        dest='failnode',
-                        type=bool,
-                        help='Should a random node fail for higher batches.',
-                        default=False)
-    parser.add_argument('-fa', '--failall',
-                        dest='failall',
-                        type=bool,
-                        help='Everything should fail(just one by time.',
-                        default=False)
-    parser.add_argument('-F', '--folder',
-                        dest='folder',
-                        type=str,
-                        help='Folder where results should be placed in.',
-                        default='.')
-    parser.add_argument('-max', '--maxduration',
-                        dest='maxduration',
-                        type=int,
-                        help='Maximum number time slots to wait until destination finishes.',
-                        default=0)
-    return parser.parse_args()
 
 
 def readconf(jsonfile):
@@ -676,36 +608,3 @@ class Simulator:
         if self.david:
             with open('{}/AADAVID.DAVID'.format(self.folder), 'w') as file:
                 file.write('DAVID')
-
-
-if __name__ == '__main__':
-    random.seed(1)
-    llevel = logging.INFO
-    logging.basicConfig(
-        filename='main.log', level=llevel, format='%(asctime)s %(levelname)s\t %(message)s',
-        filemode='w')
-    args = parse_args()
-    sim = Simulator(jsonfile=args.json, coding=args.coding, fieldsize=args.fieldsize, sendall=args.sendam, own=args.own,
-                    edgefail=args.failedge, nodefail=args.failnode, allfail=args.failall, randcof=args.randomnodes,
-                    folder=args.folder, sourceshift=args.sourceshift)
-    starttime = time.time()
-    complete = False
-    while not complete:
-        beginbatch = time.time()
-        done = False
-        while not done:
-            done = sim.update()
-        logging.info('{:3.0f} Seconds needed'.format(time.time() - beginbatch))
-        complete = sim.newbatch()
-    logging.info('{:3.0f} Seconds needed in total.'.format(time.time() - starttime))
-    # sim.drawtrash()
-    # sim.drawtrash('real')
-    sim.writelogs()
-    with open('path.json', 'w') as f:
-        newdata = {}
-        for batch in sim.getpath():
-            newdata[batch] = {}
-            for key, value in sim.getpath()[batch].items():
-                newdata[batch][str(key)] = value
-        json.dump(newdata, f)
-    logging.info('Total used airtime {}'.format(sim.calcairtime()))
