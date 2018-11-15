@@ -133,16 +133,21 @@ def cleanfolder(folder):
 
 def setmode(config, number):
     """Set config mode."""
-    mode = ['m', 'o', 'ss', 'oss']
-    number %= len(mode)
+    mode = ['m', 'o', 'ss', 'oss', 'david']
+    try:
+        number = int(number) % len(mode)
+    except (TypeError, ValueError):
+        number = 0
     if mode[number] == 'm':
-        config['own'], config['sourceshift'] = False, False
+        config['own'], config['sourceshift'], config['david'], config['multi'] = False, False, False, False
     elif mode[number] == 'o':
-        config['own'], config['sourceshift'] = True, False
+        config['own'], config['sourceshift'], config['david'], config['multi'] = True, False, False, False
     elif mode[number] == 'ss':
-        config['own'], config['sourceshift'] = False, True
+        config['own'], config['sourceshift'], config['david'], config['multi'] = False, True, False, False
     elif mode[number] == 'oss':
-        config['own'], config['sourceshift'] = True, True
+        config['own'], config['sourceshift'], config['david'], config['multi'] = True, True, False, False
+    elif mode[number] == 'david':
+        config['own'], config['sourceshift'], config['david'], config['multi'] = False, False, True, False
     return config
 
 

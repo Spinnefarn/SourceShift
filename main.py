@@ -78,6 +78,11 @@ def parse_args():
                         type=int,
                         help='Specify a seed to reduce randomness.',
                         default=None)
+    parser.add_argument('-d', '--david',
+                        dest='david',
+                        type=float,
+                        help='Use Davids protocol MOREresilience. Value should be float value as limit.',
+                        default=0.0)
     return parser.parse_args()
 
 
@@ -103,7 +108,8 @@ if __name__ == '__main__':
     sim = Simulator(jsonfile=args.json, coding=args.coding, fieldsize=args.fieldsize,
                     sendall=args.sendam, own=args.own, edgefail=args.failedge, nodefail=args.failnode,
                     allfail=args.failall, randcof=args.randomnodes, folder=args.folder,
-                    maxduration=args.maxduration, randomseed=randomnumber, sourceshift=args.sourceshift)
+                    maxduration=args.maxduration, randomseed=randomnumber, sourceshift=args.sourceshift,
+                    david=args.david)
 
     starttime = time.time()
     complete = False
@@ -117,11 +123,5 @@ if __name__ == '__main__':
     logging.info('{:3.0f} Seconds needed in total.'.format(time.time() - starttime))
     # sim.drawtrash()
     # sim.drawtrash('real')
-    with open('{}/path.json'.format(args.folder), 'w') as f:
-        newdata = {}
-        for batch in sim.getpath():
-            newdata[batch] = {}
-            for key, value in sim.getpath()[batch].items():
-                newdata[batch][str(key)] = value
-        json.dump(newdata, f)
+    sim.writelogs()
     logging.info('Total used airtime {}'.format(sim.calcairtime()))

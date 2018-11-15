@@ -93,9 +93,11 @@ def readconf(jsonfile):
 class Simulator:
     """Round based simulator to simulate traffic in meshed network."""
     def __init__(self, jsonfile=None, coding=None, fieldsize=2, sendall=0, own=True, edgefail=None, nodefail=None,
-                 allfail=False, randcof=(10, 0.5), folder='.', maxduration=0, randomseed=None, sourceshift=False):
+                 allfail=False, randcof=(10, 0.5), folder='.', maxduration=0, randomseed=None, sourceshift=False,
+                 david=False):
         self.airtime = {'None': {}}
         self.sourceshift = sourceshift
+        self.david = david
         self.edgefail = edgefail
         self.nodefail = nodefail
         self.allfail = allfail
@@ -136,7 +138,7 @@ class Simulator:
                             if name.gethealth():    # Broken nodes should not receive
                                 special = self.checkspecial(node, neighbor) if self.own else False
                                 name.buffpacket(batch=node.getbatch(), coding=packet, preveotx=node.geteotx(),
-                                                special=special, ts=self.timestamp)
+                                                prevdeotx=node.getdeotx(), special=special, ts=self.timestamp)
                                 if str(node) + neighbor not in self.path[self.getidentifier()]:
                                     self.path[self.getidentifier()][(str(node) + neighbor)] = []
                                 self.path[self.getidentifier()][(str(node) + neighbor)].append(self.timestamp)
@@ -150,11 +152,32 @@ class Simulator:
             summe += len(self.airtime[ident][node])
         return summe
 
-    def calce(self, node):
+    def calcdeotx(self):
+        """Calculate second layer of more like david would do."""
+        x = {}
+        for node in self.nodes:
+            if str(node) == 'D':
+                continue
+            for neighbor in self.graph.neighbors(str(node)):
+                if self.graph.nodes[str(node)]['EOTX'] > self.graph.nodes[neighbor]['EOTX']:
+                    x[str(node) + neighbor] = self.z[str(node)] * self.graph.edges[str(node), neighbor]['weight'] * \
+                                       self.calce(str(node), notnode=neighbor)
+        bestlinks = [edge for edge, edgevalue in x.items() if edgevalue >= self.david]
+        bestlinks = [(edge[0], edge[1], self.graph.edges[edge[0], edge[1]]['weight']) for edge in bestlinks]
+        self.graph.remove_edges_from(bestlinks)
+        eotx = self.geteotx()
+        for node in self.nodes:
+            node.setdeotx(eotx[str(node)])
+            self.graph.nodes[str(node)]['DEOTX'] = eotx[str(node)]
+        self.calc_tx_credit(david=True)
+        self.graph.add_weighted_edges_from(bestlinks)
+
+    def calce(self, node, notnode=None, david=False):
         """Calc the probability a packet is not received by any destination."""
         e = 1
+        eotx = 'DEOTX' if david else 'EOTX'
         for neighbor in self.graph.neighbors(node):
-            if self.graph.nodes[neighbor]['EOTX'] < self.graph.nodes[node]['EOTX']:
+            if self.graph.nodes[neighbor][eotx] < self.graph.nodes[node][eotx] and notnode != neighbor:
                 e *= (1 - self.graph.edges[node, neighbor]['weight'])
         return e
 
@@ -174,34 +197,28 @@ class Simulator:
         L_i load of each node sum_k(x_ik)
         K = 32 = Batchsize"""
 
-        eotx_t = {str(node): 1 for node in self.nodes}
-        eotx_p = eotx_t.copy()
-        q = {}
+        eotx = self.geteotx()
         for node in self.nodes:
-            self.graph.nodes[str(node)]['EOTX'] = float('inf')
-            q[str(node)] = node
-        q['D'].seteotx(0.)
-        self.graph.nodes['D']['EOTX'] = 0.
-        while q:
-            node, _ = min(q.items(), key=lambda x: x[1].geteotx())  # Calculate from destination to source
-            del q[node]
-            for neighbor in self.graph.neighbors(node):
-                if neighbor not in q:
-                    continue
-                eotx_t[neighbor] += \
-                    self.graph.edges[node, neighbor]['weight'] * eotx_p[neighbor] * self.graph.nodes[node]['EOTX']
-                eotx_p[neighbor] *= (1 - self.graph.edges[node, neighbor]['weight'])
-                self.graph.nodes[neighbor]['EOTX'] = eotx_t[neighbor] / (1 - eotx_p[neighbor])
-                q[neighbor].seteotx(self.graph.nodes[neighbor]['EOTX'])
+            node.seteotx(eotx[str(node)])
+            self.graph.nodes[str(node)]['EOTX'] = eotx[str(node)]
 
-    def calc_tx_credit(self):
+    def calc_tx_credit(self, david=False):
         """Calculate the amount of tx credit the receiver gets."""
-        l_n = {node: self.graph.nodes[node]['EOTX'] for node in self.graph.nodes}
+        if david:
+            l_n = {node: self.graph.nodes[node]['DEOTX'] for node in self.graph.nodes}
+        else:
+            l_n = {node: self.graph.nodes[node]['EOTX'] for node in self.graph.nodes}
         l_n = sorted(l_n.items(), key=lambda kv: kv[1])
         l_i = {nodename[0]: 0 for nodename in l_n if nodename[0] != 'D'}
         l_i['S'] = 1
         for idx, node in enumerate(list(l_i.keys())[::-1]):
-            self.z[node] = l_i[node] / (1 - self.calce(node))
+            try:
+                if david:
+                    self.calcz(node, l_i[node], david)
+                else:
+                    self.z[node] = l_i[node] / (1 - self.calce(node))
+            except ValueError:
+                continue
             p = 1
             for idx2, j in enumerate(list(l_i.keys())[:(len(l_i.keys()) - idx - 1)]):
                 try:
@@ -220,12 +237,30 @@ class Simulator:
                 continue
             somevalue = 0
             for neighbor in self.graph.neighbors(str(node)):
-                if self.graph.nodes[neighbor]['EOTX'] > node.geteotx():
-                    somevalue += self.z[neighbor] * self.graph.edges[str(node), neighbor]['weight']
+                if david:
+                    if self.graph.nodes[neighbor]['DEOTX'] > node.getdeotx():
+                        somevalue += self.z[neighbor] * self.graph.edges[str(node), neighbor]['weight']
+                else:
+                    if self.graph.nodes[neighbor]['EOTX'] > node.geteotx():
+                        somevalue += self.z[neighbor] * self.graph.edges[str(node), neighbor]['weight']
             try:
                 node.setcredit(self.z[str(node)] / somevalue)
             except ZeroDivisionError:
                 pass
+
+    def calcz(self, nodename, li, david):
+        """Calculate metric like david does in MOREresilience."""
+        z = []
+        try:
+            z.append(li / (1 - self.calce(nodename)))
+        except ZeroDivisionError:        # In case removing a link broke the regular connection
+            pass
+        if david:
+            try:
+                z.append(li / (1 - self.calce(nodename, david=david)))
+            except ZeroDivisionError:
+                pass
+        self.z[nodename] = max(z)
 
     def checkduration(self):
         """Calculate duration since batch was started. To know there is no connection SD."""
@@ -442,6 +477,25 @@ class Simulator:
         self.interresting.extend(usededges)
         logging.debug('Interresting failures are: {}'.format(self.interresting))
 
+    def geteotx(self):
+        """Calculate EOTX for all nodes in network and return as dict."""
+        eotx = {str(node): float('inf') for node in self.nodes}
+        eotx_t = {str(node): 1 for node in self.nodes}
+        eotx_p = eotx_t.copy()
+        eotx['D'] = 0.
+        q = {node: eotxvalue for node, eotxvalue in eotx.items()}
+        while q:
+            node = min(q, key=q.get)  # Calculate from destination to source
+            del q[node]
+            for neighbor in self.graph.neighbors(node):
+                if neighbor not in q:
+                    continue
+                eotx_t[neighbor] += self.graph.edges[node, neighbor]['weight'] * eotx_p[neighbor] * eotx[node]
+                eotx_p[neighbor] *= (1 - self.graph.edges[node, neighbor]['weight'])
+                eotx[neighbor] = eotx_t[neighbor] / (1 - eotx_p[neighbor])
+                q[neighbor] = eotx[neighbor]
+        return eotx
+
     def getgraph(self):
         """Return graph."""
         return self.graph
@@ -472,10 +526,8 @@ class Simulator:
             self.calceotx()
             self.calc_tx_credit()
             logging.info('Created network from JSON successfully!')
-        # self.drawunused()
-        # print('{}/graph.pdf'.format(self.folder))
-        # plt.savefig('{}/graph.pdf'.format(self.folder))
-        # plt.close()
+        if self.david:
+            self.calcdeotx()
 
     def getpath(self):
         """Get path of the packet which arrived successfully."""
@@ -616,8 +668,14 @@ class Simulator:
         with open('{}/eotx.json'.format(self.folder), 'w') as file:
             json.dump(nodedict, file)
         if self.own:
-            with open('{}/OWN.OWN'.format(self.folder), 'w') as file:
+            with open('{}/AAOWN.OWN'.format(self.folder), 'w') as file:
                 file.write('OWN')
+        if self.sourceshift:
+            with open('{}/AASS.SS'.format(self.folder), 'w') as file:
+                file.write('SS')
+        if self.david:
+            with open('{}/AADAVID.DAVID'.format(self.folder), 'w') as file:
+                file.write('DAVID')
 
 
 if __name__ == '__main__':

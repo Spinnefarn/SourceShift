@@ -81,6 +81,7 @@ class Node:
         self.coding = coding
         self.batch = 0
         self.eotx = float('inf')
+        self.deotx = float('inf')
         self.creditcounter = 0. if self.name != 'S' else float('inf')
         self.credit = 0.
         self.complete = (name == 'S')
@@ -105,10 +106,10 @@ class Node:
     def __str__(self):
         return str(self.name)
 
-    def buffpacket(self, batch=0, coding=None, preveotx=0, special=False, ts=0):
+    def buffpacket(self, batch=0, coding=None, preveotx=0, prevdeotx=0, special=False, ts=0):
         """Buffer incoming packets so they will be received at end of time slot."""
-        self.incbuffer.append((batch, coding, preveotx, special))
-        self.history.append((batch, coding, preveotx, special, ts))
+        self.incbuffer.append((batch, coding, preveotx, prevdeotx, special))
+        self.history.append((batch, coding, preveotx, prevdeotx, special, ts))
 
     def becomesource(self):
         """Act like source. Will be triggered if all neighbors are complete."""
@@ -173,6 +174,10 @@ class Node:
         """Get eotx."""
         return self.eotx
 
+    def getdeotx(self):
+        """Get davids eotx."""
+        return self.deotx
+
     def gethealth(self):
         """Get state working or not."""
         return self.working
@@ -217,7 +222,7 @@ class Node:
     def rcvpacket(self, timestamp):
         """Add received Packet to buffer. Do this at end of timeslot."""
         while len(self.incbuffer):
-            batch, coding, preveotx, special = self.incbuffer.pop()
+            batch, coding, preveotx, prevdeotx, special = self.incbuffer.pop()
             if self.name == 'S':  # Cant get new information if you're source
                 break
             elif batch < self.batch:
@@ -249,7 +254,7 @@ class Node:
                     self.realtrash.append(timestamp)
                 else:
                     self.trash.append(timestamp)
-            if preveotx > self.eotx:
+            if preveotx > self.eotx or prevdeotx > self.deotx:
                 self.creditcounter += self.credit
 
     def reducecredit(self):
@@ -257,12 +262,17 @@ class Node:
         self.creditcounter -= 1
 
     def setcredit(self, credit):
-        """Set custom tx credit."""
-        self.credit = credit
+        """Set custom tx credit. In case of MOREresilience use the higher credit."""
+        if self.credit < credit:
+            self.credit = credit
 
     def seteotx(self, eotx=float('inf')):
         """Set eotx to given value."""
         self.eotx = eotx
+
+    def setdeotx(self, eotx=float('inf')):
+        """Set davids eotx to given value."""
+        self.deotx = eotx
 
     def stopsending(self):
         """Stop sending if every neighbor is complete."""

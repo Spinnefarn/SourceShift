@@ -293,7 +293,7 @@ if __name__ == '__main__':
     # date = str(2018118)
     folderlist = []
     folderlst = []
-    for i in range(10):
+    for i in range(0):
         # folderlist.append('{}/graph{}/test'.format(date, i))
         folderlist.extend(['{}/graph{}/test{}'.format(date, i, j) for j in range(40)])
         mfolder = '{}/graph{}'.format(date, i)
@@ -302,3 +302,4 @@ if __name__ == '__main__':
         plotairtime(mfolder, folderlst)
         plotfailhist(mfolder, folderlst)
     # plotgraph(folders=folderlist)
+    plotgraph(folders=['test'])
