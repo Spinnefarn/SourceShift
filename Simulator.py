@@ -596,7 +596,10 @@ class Simulator:
             json.dump(information, file, indent=4, sort_keys=True)
         nodedict = {}
         for node in self.nodes:
-            nodedict[str(node)] = (node.geteotx(), node.getcreditinc())
+            if self.david:
+                nodedict[str(node)] = (node.geteotx(), node.getdeotx(), node.getcreditinc())
+            else:
+                nodedict[str(node)] = (node.geteotx(), node.getcreditinc())
         with open('{}/eotx.json'.format(self.folder), 'w') as file:
             json.dump(nodedict, file)
         if self.own:

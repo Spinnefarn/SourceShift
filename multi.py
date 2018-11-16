@@ -158,6 +158,7 @@ def plotall(mfolder, counter, liste):
     plotter.plotgraph(['{0}/graph{1}/{2}'.format(mfolder, counter, folder) for folder in liste])
     plotter.plotairtime('{0}/graph{1}'.format(mfolder, counter), liste)
     plotter.plotfailhist('{0}/graph{1}'.format(mfolder, counter), liste)
+    plotter.plotgain('{0}/graph{1}'.format(mfolder, counter), liste)
 
 
 if __name__ == '__main__':

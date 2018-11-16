@@ -2,6 +2,7 @@
 # coding=utf-8
 """Will collect interesting logs from subfolders and draw plots."""
 import matplotlib.pylab as p
+import numpy as np
 import networkx as nx
 import json
 import os
@@ -19,6 +20,112 @@ def drawunused(net=None, pos=None):
     labels = {x: round(y, 1) for x, y in nx.get_node_attributes(net, 'EOTX').items()}
     nx.draw_networkx_labels(net, pos=pos, labels=labels)
     nx.draw_networkx_edge_labels(net, pos=pos, edge_labels=nx.get_edge_attributes(net, 'weight'))
+
+
+# noinspection PyTypeChecker
+def getairtime(mainfolder=None, folders=None):
+    """Get parsed values and do statistics with it."""
+    if folders is None:
+        quit(1)
+    if mainfolder is None:
+        mainfolder = ''
+    globconfig = {}
+    incdicts = {}
+    for folder in folders:
+        airtime, config = readairtime('{}/{}'.format(mainfolder, folder))
+        if airtime is None or config is None:
+            print('Can not read log at {}! Continue'.format(folder))
+            continue
+        elif not globconfig:
+            globconfig = config
+        if config['own'] and config['sourceshift']:
+            if 'MORELESS' not in incdicts.keys():
+                incdicts['MORELESS'] = {}
+            incdicts['MORELESS'][folder] = airtime
+        elif config['own']:
+            if 'own' not in incdicts.keys():
+                incdicts['own'] = {}
+            incdicts['own'][folder] = airtime
+        elif config['sourceshift']:
+            if 'ss' not in incdicts.keys():
+                incdicts['ss'] = {}
+            incdicts['ss'][folder] = airtime
+        elif config['david']:
+            if 'MOREresilience' not in incdicts.keys():
+                incdicts['MOREresilience'] = {}
+            incdicts['MOREresilience'][folder] = airtime
+        else:
+            if 'MORE' not in incdicts.keys():
+                incdicts['MORE'] = {}
+            incdicts['MORE'][folder] = airtime
+    plots, std = {}, {}
+    failures = set()
+    for protocol, dic in incdicts.items():
+        plots[protocol], std[protocol] = parseairtime(dic)
+        failures |= {fail for fail in plots[protocol]}
+    for fail in failures:
+        for protocol in plots:
+            if fail not in plots[protocol].keys():
+                plots[protocol][fail] = plots[protocol]['None']
+                std[protocol][fail] = std[protocol]['None']
+    plotlist, stdlist = {}, {}
+    for protocol in plots:
+        plotlist[protocol] = [plots[protocol][key] for key in sorted(plots[protocol].keys())]
+        stdlist[protocol] = [std[protocol][key] for key in sorted(std[protocol].keys())]
+    return sorted(failures), plotlist, stdlist
+
+
+# noinspection PyTypeChecker
+def getfailhist(mainfolder=None, folders=None):
+    """Get parsed values and do statistics with it."""
+    if folders is None:
+        quit(1)
+    if mainfolder is None:
+        mainfolder = ''
+    p.figure(figsize=(20, 10))
+    incdicts, config = {}, {}
+    for folder in folders:
+        try:
+            failhist, config = readfailhist('{}/{}'.format(mainfolder, folder))
+        except FileNotFoundError:
+            print('No logs found at {}/{}'.format(mainfolder, folder))
+            continue
+        if config['own'] and config['sourceshift']:
+            if 'MORELESS' not in incdicts.keys():
+                incdicts['MORELESS'] = {}
+            incdicts['MORELESS'][folder] = {key: value[0] for key, value in failhist.items()}
+        elif config['own']:
+            if 'own' not in incdicts.keys():
+                incdicts['own'] = {}
+            incdicts['own'][folder] = {key: value[0] for key, value in failhist.items()}
+        elif config['sourceshift']:
+            if 'ss' not in incdicts.keys():
+                incdicts['ss'] = {}
+            incdicts['ss'][folder] = {key: value[0] for key, value in failhist.items()}
+        elif config['david']:
+            if 'MOREresilience' not in incdicts.keys():
+                incdicts['MOREresilience'] = {}
+            incdicts['MOREresilience'][folder] = {key: value[0] for key, value in failhist.items()}
+        else:
+            if 'MORE' not in incdicts.keys():
+                incdicts['MORE'] = {}
+            incdicts['MORE'][folder] = {key: value[0] for key, value in failhist.items()}
+    failures = set()
+    plots = {}
+    std = {}
+    for protocol, dic in incdicts.items():
+        plots[protocol], std[protocol] = parsefail(dic)
+        failures |= {fail for fail in plots[protocol]}
+    for fail in failures:
+        for protocol in plots:
+            if fail not in plots[protocol].keys():
+                plots[protocol][fail] = plots[protocol]['None']
+                std[protocol][fail] = std[protocol]['None']
+    plotlist, stdlist = {}, {}
+    for protocol in plots:
+        plotlist[protocol] = [plots[protocol][key] for key in sorted(plots[protocol].keys())]
+        stdlist[protocol] = [std[protocol][key] for key in sorted(std[protocol].keys())]
+    return sorted(failures), plotlist, stdlist, config
 
 
 def parseairtime(dic):
@@ -107,57 +214,11 @@ def readgraph(folder):
 
 def plotairtime(mainfolder=None, folders=None):
     """Plot airtime for different failures."""
-    if folders is None:
-        quit(1)
-    if mainfolder is None:
-        mainfolder = ''
     p.figure(figsize=(20, 10))
-    globconfig = {}
-    incdicts = {}
-    for folder in folders:
-        airtime, config = readairtime('{}/{}'.format(mainfolder, folder))
-        if airtime is None or config is None:
-            print('Can not read log at {}! Continue'.format(folder))
-            continue
-        elif not globconfig:
-            globconfig = config
-        if config['own'] and config['sourceshift']:
-            if 'MORELESS' not in incdicts.keys():
-                incdicts['MORELESS'] = {}
-            incdicts['MORELESS'][folder] = airtime
-        elif config['own']:
-            if 'own' not in incdicts.keys():
-                incdicts['own'] = {}
-            incdicts['own'][folder] = airtime
-        elif config['sourceshift']:
-            if 'ss' not in incdicts.keys():
-                incdicts['ss'] = {}
-            incdicts['ss'][folder] = airtime
-        elif config['david']:
-            if 'MOREresilience' not in incdicts.keys():
-                incdicts['MOREresilience'] = {}
-            incdicts['MOREresilience'][folder] = airtime
-        else:
-            if 'MORE' not in incdicts.keys():
-                incdicts['MORE'] = {}
-            incdicts['MORE'][folder] = airtime
-    plots, std = {}, {}
-    failures = set()
-    for protocol, dic in incdicts.items():
-        plots[protocol], std[protocol] = parseairtime(dic)
-        failures |= {fail for fail in plots[protocol]}
-    for fail in failures:
-        for protocol in plots:
-            if fail not in plots[protocol].keys():
-                plots[protocol][fail] = plots[protocol]['None']
-                std[protocol][fail] = std[protocol]['None']
-    plotlist, stdlist = {}, {}
-    for protocol in plots:
-        plotlist[protocol] = [plots[protocol][key] for key in sorted(plots[protocol].keys())]
-        stdlist[protocol] = [std[protocol][key] for key in sorted(std[protocol].keys())]
-    width = 0.9/len(plots.keys())
+    failures, plotlist, stdlist = getairtime(mainfolder, folders)
+    width = 0.9/len(plotlist.keys())
     for protocol in plotlist:
-        ind = [x + list(sorted(plots.keys())).index(protocol) * width for x in range(len(failures))]
+        ind = [x + list(sorted(plotlist.keys())).index(protocol) * width for x in range(len(failures))]
         p.bar(ind, plotlist[protocol], width=width, label=protocol, yerr=stdlist[protocol],
               error_kw={'elinewidth': width/5})
     p.legend(loc='upper right')
@@ -167,66 +228,30 @@ def plotairtime(mainfolder=None, folders=None):
     p.xlim([-1, len(failures)])
     p.title('Needed transmissions over failures for different protocols')
     ind = [x + width/2 for x in range(len(failures))]
-    p.xticks(ind, labels=sorted(plots[list(plots.keys())[0]].keys()), rotation=90)
+    p.xticks(ind, labels=failures, rotation=90)
     p.tight_layout()
     p.savefig('{}/airtimefail.pdf'.format(mainfolder))
+    p.close()
+    p.figure(figsize=(5, 5))
+    for protocol in plotlist:
+        p.plot(sorted(plotlist[protocol]), np.linspace(0, 1, len(plotlist[protocol])), label=protocol)
+    p.title('Used airtime per protocol')
+    p.ylabel('Probability')
+    p.xlabel('Airtime in transmissions')
+    p.ylim([0, 1])
+    p.xlim(left=0)
+    p.legend(loc='lower right')
+    p.tight_layout()
+    p.savefig('{}/airtimecdf.pdf'.format(mainfolder))
     p.close()
 
 
 def plotfailhist(mainfolder=None, folders=None):
     """Plot time to finish transmission diagram to compare different simulations."""
-    if folders is None:
-        quit(1)
-    if mainfolder is None:
-        mainfolder = ''
-    p.figure(figsize=(20, 10))
-    failhist, config = {}, {}
-    incdicts = {}
-    for folder in folders:
-        try:
-            failhist, config = readfailhist('{}/{}'.format(mainfolder, folder))
-        except FileNotFoundError:
-            print('No logs found at {}/{}'.format(mainfolder, folder))
-            continue
-        if config['own'] and config['sourceshift']:
-            if 'MORELESS' not in incdicts.keys():
-                incdicts['MORELESS'] = {}
-            incdicts['MORELESS'][folder] = {key: value[0] for key, value in failhist.items()}
-        elif config['own']:
-            if 'own' not in incdicts.keys():
-                incdicts['own'] = {}
-            incdicts['own'][folder] = {key: value[0] for key, value in failhist.items()}
-        elif config['sourceshift']:
-            if 'ss' not in incdicts.keys():
-                incdicts['ss'] = {}
-            incdicts['ss'][folder] = {key: value[0] for key, value in failhist.items()}
-        elif config['david']:
-            if 'MOREresilience' not in incdicts.keys():
-                incdicts['MOREresilience'] = {}
-            incdicts['MOREresilience'][folder] = {key:value[0] for key, value in failhist.items()}
-        else:
-            if 'MORE' not in incdicts.keys():
-                incdicts['MORE'] = {}
-            incdicts['MORE'][folder] = {key: value[0] for key, value in failhist.items()}
-    failures = set()
-    plots = {}
-    std = {}
-    for protocol, dic in incdicts.items():
-        plots[protocol], std[protocol] = parsefail(dic)
-        failures |= {fail for fail in plots[protocol]}
-    for fail in failures:
-        for protocol in plots:
-            if fail not in plots[protocol].keys():
-                plots[protocol][fail] = plots[protocol]['None']
-                std[protocol][fail] = std[protocol]['None']
-    plotlist, stdlist = {}, {}
-    for protocol in plots:
-        plotlist[protocol] = [plots[protocol][key] for key in sorted(plots[protocol].keys())]
-        stdlist[protocol] = [std[protocol][key] for key in sorted(std[protocol].keys())]
-
-    width = 0.9/len(plots.keys())
+    failures, plotlist, stdlist, config = getfailhist(mainfolder, folders)
+    width = 0.9/len(plotlist.keys())
     for protocol in plotlist:
-        ind = [x + list(sorted(plots.keys())).index(protocol) * width for x in range(len(failures))]
+        ind = [x + list(sorted(plotlist.keys())).index(protocol) * width for x in range(len(failures))]
         p.bar(ind, plotlist[protocol], width=width, label=protocol, yerr=stdlist[protocol],
               error_kw={'elinewidth': width/5})
     p.legend(loc='upper right')
@@ -240,11 +265,60 @@ def plotfailhist(mainfolder=None, folders=None):
         p.ylim(bottom=0)
     p.xlim([-1, len(failures)])
     p.title('Needed timeslots over failures for different protocols')
-    ind = [x + 0.5 for x in range(len(plots[list(plots.keys())[0]]))]
-    p.xticks(ind, labels=sorted(plots[list(plots.keys())[0]].keys()), rotation=90)
+    ind = [x + 0.5 for x in range(len(failures))]
+    p.xticks(ind, labels=failures, rotation=90)
     p.tight_layout()
     p.savefig('{}/timeslotfail.pdf'.format(mainfolder))
     p.close()
+    p.figure(figsize=(5, 5))
+    for protocol in plotlist:
+        p.plot(sorted(plotlist[protocol]), np.linspace(0, 1, len(plotlist[protocol])), label=protocol)
+    p.title('Needed latency per protocol')
+    p.ylabel('Probability')
+    p.xlabel('Latency in timeslots')
+    p.ylim([0, 1])
+    p.xlim(left=0)
+    p.legend(loc='lower right')
+    p.tight_layout()
+    p.savefig('{}/latencycdf.pdf'.format(mainfolder))
+    p.close()
+
+
+def plotgain(mainfolder=None, folders=None):
+    """Plot gain in latency."""
+    for mode in ['airtime', 'latency']:
+        if mode == 'latency':
+            failures, plotlist, stdlist, config = getfailhist(mainfolder, folders)
+        else:
+            failures, plotlist, stdlist = getairtime(mainfolder, folders)
+        gainlist = {}
+        for protocol in plotlist:
+            if protocol != 'MORE':
+                gainlist[protocol] = statistics.mean([((plotlist[protocol][j] / plotlist['MORE'][j]) - 1) * 100
+                                                      for j in range(len(failures))])
+        p.figure(figsize=(5, 5))
+        width = 0.9 / len(plotlist.keys())
+        # for protocol in gainlist:
+        #    ind = [x + list(sorted(plotlist.keys())).index(protocol) * width for x in range(len(failures))]
+        p.bar(range(len(gainlist.keys())), gainlist.values(), width=width)
+        # p.legend(loc='upper left')
+        if mode == 'latency':
+            p.title('Latency compared to MORE')
+        else:
+            p.title('Airtime compared to MORE')
+        p.ylim([-100, 100])
+        p.ylabel('Mean relative difference [%]')
+        # p.xlim([-1, len(failures)])
+        # p.xlabel('Approach')
+        p.grid(True)
+        # ind = [x + width / 2 for x in range(len(failures))]
+        p.xticks(range(len(gainlist.keys())), labels=gainlist.keys())
+        p.tight_layout()
+        if mode == 'latency':
+            p.savefig('{}/latencygain.pdf'.format(mainfolder))
+        else:
+            p.savefig('{}/airtimegain.pdf'.format(mainfolder))
+        p.close()
 
 
 def plotgraph(folders=None):
@@ -306,15 +380,16 @@ def plotgraph(folders=None):
 if __name__ == '__main__':
     now = datetime.datetime.now()
     # date = int(str(now.year) + str(now.month) + str(now.day))
-    date = '../Results/20181115'
+    date = '../Results/20181116'
     folderlist = []
     folderlst = []
-    for i in range(5):
+    for i in range(4):
         # folderlist.append('{}/graph{}/test'.format(date, i))
         folderlist.extend(['{}/graph{}/test{}'.format(date, i, j) for j in range(40)])
         mfolder = '{}/graph{}'.format(date, i)
         # folderlst.append('test'.format(i))
         folderlst.extend(['test{}'.format(j) for j in range(40)])
         plotairtime(mfolder, folderlst)
+        plotgain(mfolder, folderlst)
         plotfailhist(mfolder, folderlst)
     # plotgraph(folders=folderlist)
