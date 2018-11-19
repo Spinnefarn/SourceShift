@@ -228,7 +228,7 @@ class Simulator:
                                 if not invnode.isdone() or node.getbatch() > invnode.getbatch():
                                     return True         # Don't get src like if your dst is done
                             else:
-                                if node.getbatch() > invnode.getbatch():
+                                if node.getbatch() >= invnode.getbatch():
                                     return True
                             break
         return False

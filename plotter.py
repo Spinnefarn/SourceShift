@@ -233,6 +233,7 @@ def plotairtime(mainfolder=None, folders=None):
     p.savefig('{}/airtimefail.pdf'.format(mainfolder))
     p.close()
 
+
 def plotaircdf(mainfolder=None, folders=None):
     """Plot airtime CDF."""
     if folders is None and mainfolder is not None:
