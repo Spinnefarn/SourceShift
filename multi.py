@@ -110,8 +110,6 @@ def runsim(config):
         complete = sim.newbatch()
     sim.writelogs()
     logging.info('{:3.0f} Seconds needed in total.'.format(time.time() - starttime))
-    with open('{}/config.json'.format(config['folder']), 'w') as f:
-        json.dump(config, f)
 
 
 def launchsubp(config):
@@ -159,6 +157,8 @@ def plotall(mfolder, counter, liste):
     plotter.plotairtime('{0}/graph{1}'.format(mfolder, counter), liste)
     plotter.plotfailhist('{0}/graph{1}'.format(mfolder, counter), liste)
     plotter.plotgain('{0}/graph{1}'.format(mfolder, counter), liste)
+    plotter.plotaircdf('{0}/graph{1}'.format(mfolder, counter), liste)
+    plotter.plotlatcdf('{0}/graph{1}'.format(mfolder, counter), liste)
 
 
 if __name__ == '__main__':

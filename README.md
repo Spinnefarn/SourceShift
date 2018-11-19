@@ -1,5 +1,4 @@
 This project will contain a network graph simulator based on networkx. It will be able to simulate (re)coding
-Results can be found at spinnefarn.de/results using password: nDru6gQM
 The written thesis will be at latex.spinnefarn.de 
 
 components.py

@@ -51,6 +51,8 @@ class Simulator:
         self.fieldsize = fieldsize
         self.pos = None
         self.getready(jsonfile=jsonfile, randcof=randcof)
+        self.json = jsonfile
+        self.randcof = randcof
         self.done = False
         self.path = {'None': {}}
         self.timestamp = 0
@@ -565,6 +567,12 @@ class Simulator:
             json.dump(self.path, file)
         with open('{}/ranklist.json'.format(self.folder), 'w') as file:
             json.dump(self.ranklist, file)
+        config = {'json': self.json, 'coding': self.coding, 'fieldsize': self.fieldsize, 'sendam': self.sendam,
+                  'own': self.own, 'failedge': self.edgefail, 'failnode': self.nodefail, 'failall': self.allfail,
+                  'randconf': self.randcof, 'folder': self.folder, 'maxduration': self.maxduration,
+                  'randomseed': self.random, 'sourceshift': self.sourceshift, 'david': self.david}
+        with open('{}/config.json'.format(self.folder), 'w') as file:
+            json.dump(config, file)
         for kind in ['overhearing', 'real']:
             trashdict = {}
             for node in self.nodes:
