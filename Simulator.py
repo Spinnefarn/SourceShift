@@ -70,7 +70,7 @@ class Simulator:
                     for name in self.nodes:  # Add received Packet to buffer with coding
                         if str(name) == neighbor:
                             if name.gethealth():    # Broken nodes should not receive
-                                special = self.checkspecial(node, neighbor) if self.own else False
+                                special = self.checkspecial(node, neighbor, mode='rec') if self.own else False
                                 name.buffpacket(batch=node.getbatch(), coding=packet, preveotx=node.geteotx(),
                                                 prevdeotx=node.getdeotx(), special=special, ts=self.timestamp)
                                 if str(node) + neighbor not in self.path[self.getidentifier()]:
@@ -217,15 +217,19 @@ class Simulator:
             else:
                 return True
 
-    def checkspecial(self, node, neighbor):
+    def checkspecial(self, node, neighbor, mode='rec'):
         """Return True if node should be able to send over special metric."""
         for invnei in self.graph.neighbors(neighbor):
             if self.graph.nodes[neighbor]['EOTX'] > self.graph.nodes[invnei]['EOTX']:   # Maybe a different way
                 if invnei != str(node):     # Don't think your source is a different way
                     for invnode in self.nodes:
                         if str(invnode) == invnei:
-                            if not invnode.isdone() or node.getbatch() > invnode.getbatch():
-                                return True         # Don't get special if your dst is done
+                            if mode == 'ss':
+                                if not invnode.isdone() or node.getbatch() > invnode.getbatch():
+                                    return True         # Don't get src like if your dst is done
+                            else:
+                                if node.getbatch() > invnode.getbatch():
+                                    return True
                             break
         return False
 
@@ -246,7 +250,7 @@ class Simulator:
             if allcomplete:
                 node.stopsending()
                 for neighbor in self.graph.neighbors(str(node)):
-                    if self.checkspecial(node, neighbor):
+                    if self.checkspecial(node, neighbor, mode='ss'):
                         for neighbornode in self.nodes:
                             if str(neighbornode) == neighbor:
                                 neighbornode.becomesource()

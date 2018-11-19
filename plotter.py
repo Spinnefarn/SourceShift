@@ -232,19 +232,6 @@ def plotairtime(mainfolder=None, folders=None):
     p.tight_layout()
     p.savefig('{}/airtimefail.pdf'.format(mainfolder))
     p.close()
-    p.figure(figsize=(5, 5))
-    for protocol in sorted(plotlist.keys()):
-        p.plot(sorted(plotlist[protocol]), np.linspace(0, 1, len(plotlist[protocol])), label=protocol)
-    p.title('Used airtime per protocol')
-    p.ylabel('Probability')
-    p.xlabel('Airtime in transmissions')
-    p.ylim([0, 1])
-    p.xlim(left=0)
-    p.legend(loc='lower right')
-    p.tight_layout()
-    p.savefig('{}/airtimecdf.pdf'.format(mainfolder))
-    p.close()
-
 
 def plotaircdf(mainfolder=None, folders=None):
     """Plot airtime CDF."""
@@ -307,9 +294,9 @@ def plotaircdf(mainfolder=None, folders=None):
         plotlist[protocol] = []
         for fail in sorted(plot[protocol].keys()):
             plotlist[protocol].extend(plot[protocol][fail])
-    p.figure(figsize=(5, 5))
+    p.figure(figsize=(10, 10))
     for protocol in sorted(plotlist.keys()):
-        p.plot(sorted(plotlist[protocol]), np.linspace(0, 1, len(plotlist[protocol])), label=protocol)
+        p.plot(sorted(plotlist[protocol]), np.linspace(0, 1, len(plotlist[protocol])), label=protocol, alpha=0.8)
     p.title('Used airtime per protocol')
     p.ylabel('Probability')
     p.xlabel('Airtime in transmissions')
@@ -382,9 +369,9 @@ def plotlatcdf(mainfolder=None, folders=None):
         plotlist[protocol] = []
         for fail in plots[protocol].keys():
             plotlist[protocol].extend(plots[protocol][fail])
-    p.figure(figsize=(5, 5))
+    p.figure(figsize=(10, 10))
     for protocol in sorted(plotlist.keys()):
-        p.plot(sorted(plotlist[protocol]), np.linspace(0, 1, len(plotlist[protocol])), label=protocol)
+        p.plot(sorted(plotlist[protocol]), np.linspace(0, 1, len(plotlist[protocol])), label=protocol, alpha=0.8)
     p.title('Needed latency per protocol')
     p.ylabel('Probability')
     p.xlabel('Latency in timeslots')
@@ -420,18 +407,6 @@ def plotfailhist(mainfolder=None, folders=None):
     p.xticks(ind, labels=failures, rotation=90)
     p.tight_layout()
     p.savefig('{}/timeslotfail.pdf'.format(mainfolder))
-    p.close()
-    p.figure(figsize=(5, 5))
-    for protocol in sorted(plotlist.keys()):
-        p.plot(sorted(plotlist[protocol]), np.linspace(0, 1, len(plotlist[protocol])), label=protocol)
-    p.title('Needed latency per protocol')
-    p.ylabel('Probability')
-    p.xlabel('Latency in timeslots')
-    p.ylim([0, 1])
-    p.xlim(left=0)
-    p.legend(loc='lower right')
-    p.tight_layout()
-    p.savefig('{}/latencycdf.pdf'.format(mainfolder))
     p.close()
 
 
