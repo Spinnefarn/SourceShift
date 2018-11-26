@@ -70,7 +70,7 @@ class Simulator:
                     for name in self.nodes:  # Add received Packet to buffer with coding
                         if str(name) == neighbor:
                             if name.gethealth():    # Broken nodes should not receive
-                                special = self.checkspecial(node, neighbor, mode='rec') if self.own else False
+                                special = self.checkspecial(node, neighbor) if self.own else False
                                 name.buffpacket(batch=node.getbatch(), coding=packet, preveotx=node.geteotx(),
                                                 prevdeotx=node.getdeotx(), special=special, ts=self.timestamp)
                                 if str(node) + neighbor not in self.path[self.getidentifier()]:
@@ -196,6 +196,23 @@ class Simulator:
                 pass
         self.z[nodename] = max(z)
 
+    def checkconnection(self):
+        """Check for given list of potential failures if the graph is still connected."""
+        lostlist = []
+        for fail in self.interresting:
+            if len(fail) == 1:
+                edgelist = [(fail, neighbor, self.graph.edges[fail, neighbor]['weight'])
+                            for neighbor in self.graph.neighbors(fail)]
+            else:
+                edgelist = [(fail[0], fail[1], self.graph.edges[fail[0], fail[1]]['weight'])]
+            self.graph.remove_edges_from(edgelist)
+            try:
+                nx.shortest_path(self.graph, source='S', target='D')
+            except nx.exception.NetworkXNoPath:
+                lostlist.append(fail)
+            self.graph.add_weighted_edges_from(edgelist)
+        self.interresting = [fail for fail in self.interresting if fail not in lostlist]
+
     def checkduration(self):
         """Calculate duration since batch was started. To know there is no connection SD."""
         if len(self.batchhist) == 0:
@@ -217,19 +234,15 @@ class Simulator:
             else:
                 return True
 
-    def checkspecial(self, node, neighbor, mode='rec'):
+    def checkspecial(self, node, neighbor):
         """Return True if node should be able to send over special metric."""
         for invnei in self.graph.neighbors(neighbor):
             if self.graph.nodes[neighbor]['EOTX'] > self.graph.nodes[invnei]['EOTX']:   # Maybe a different way
                 if invnei != str(node):     # Don't think your source is a different way
                     for invnode in self.nodes:
                         if str(invnode) == invnei:
-                            if mode == 'ss':
-                                if not invnode.isdone() or node.getbatch() > invnode.getbatch():
-                                    return True         # Don't get src like if your dst is done
-                            else:
-                                if node.getbatch() >= invnode.getbatch():
-                                    return True
+                            if node.getbatch() >= invnode.getbatch():
+                                return True
                             break
         return False
 
@@ -249,12 +262,13 @@ class Simulator:
                         break
             if allcomplete:
                 node.stopsending()
+        for node in self.nodes:
+            if node.getcredit() != float('inf') and node.isdone():
                 for neighbor in self.graph.neighbors(str(node)):
-                    if self.checkspecial(node, neighbor, mode='ss'):
-                        for neighbornode in self.nodes:
-                            if str(neighbornode) == neighbor:
-                                neighbornode.becomesource()
-                                break
+                    for neighbornode in self.nodes:
+                        if str(neighbornode) == neighbor:
+                            if not neighbornode.isdone() and node.geteotx() > neighbornode.geteotx():
+                                node.becomesource()
 
     def createnetwork(self, config=None, randcof=(10, 0.5)):
         """Create network using networkx library based on configuration given as dict."""
@@ -410,9 +424,10 @@ class Simulator:
         usededges = [element for element in self.path['None']
                      if element[1] + element[0] not in self.path['None'] or element[0] > element[1]]
         for node in self.nodes:
-            if str(node) not in 'SD' and len([str(node) for edge in usededges if str(node) in edge]) > 1:
+            if str(node) not in 'SD' and node.getsent():
                 self.interresting.append(str(node))
         self.interresting.extend(usededges)
+        self.checkconnection()      # Fails who break the graph are also not interresting
         logging.debug('Interresting failures are: {}'.format(self.interresting))
 
     def geteotx(self):

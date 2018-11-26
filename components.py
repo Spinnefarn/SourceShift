@@ -198,6 +198,10 @@ class Node:
         """Return real interesting trash."""
         return makenice(self.realtrash, maxts)
 
+    def getsent(self):
+        """Return True if the node sent at least once."""
+        return len(self.sendhistory) != 0
+
     def gettrash(self, maxts):
         """Return trash."""
         return makenice(self.trash, maxts)

@@ -97,7 +97,7 @@ def runsim(config):
                     sendall=config['sendam'], own=config['own'], edgefail=config['failedge'],
                     nodefail=config['failnode'], allfail=config['failall'], randcof=config['randconf'],
                     folder=config['folder'], maxduration=config['maxduration'], randomseed=randomseed,
-                    sourceshift=config['sourceshift'])
+                    sourceshift=config['sourceshift'], david=config['david'])
     logging.info('Start simulator {}'.format(config['folder']))
     starttime = time.time()
     complete = False
@@ -152,13 +152,15 @@ def setmode(config, number):
 
 def plotall(mfolder, counter, liste):
     """Create a process to do the plots."""
-    plotter.plotgraph(['{0}/graph{1}/test'.format(mfolder, counter)])
-    plotter.plotgraph(['{0}/graph{1}/{2}'.format(mfolder, counter, folder) for folder in liste])
     plotter.plotairtime('{0}/graph{1}'.format(mfolder, counter), liste)
     plotter.plotfailhist('{0}/graph{1}'.format(mfolder, counter), liste)
     plotter.plotgain('{0}/graph{1}'.format(mfolder, counter), liste)
     plotter.plotaircdf('{0}/graph{1}'.format(mfolder, counter), liste)
     plotter.plotlatcdf('{0}/graph{1}'.format(mfolder, counter), liste)
+    plotter.plotaircdf(mfolder)
+    plotter.plotlatcdf(mfolder)
+    plotter.plotgraph(['{0}/graph{1}/test'.format(mfolder, counter)])  # Dont plot all networks, just twice per protocol
+    plotter.plotgraph(['{0}/graph{1}/{2}'.format(mfolder, counter, folder) for folder in liste[:10]])
 
 
 if __name__ == '__main__':
@@ -168,14 +170,15 @@ if __name__ == '__main__':
         filename='main.log', level=llevel, format='%(asctime)s %(processName)s\t %(levelname)s\t %(message)s',
         filemode='w')
     now = datetime.datetime.now()
-    date = str(now.year) + str(now.month) + str(now.day)
+    date = str(now.year) + str(now.month) + str(now.day) + 'a'
+    # date = 'test31'
     plot = None
-    for i in range(50):
+    for i in range(100):
         logging.info('Created new graph at graph{}'.format(i))
         confdict = {'json': args.json, 'randconf': args.amount, 'coding': args.coding, 'fieldsize': args.fieldsize,
                     'sendam': args.sendam, 'own': args.own, 'failedge': args.failedge, 'failnode': args.failnode,
                     'failall': False, 'folder': '{}/graph{}/test'.format(date, i), 'maxduration': args.maxduration,
-                    'random': args.random, 'sourceshift': args.sourceshift}
+                    'random': args.random, 'sourceshift': args.sourceshift, 'david': 0.0}
         cleanfolder(confdict['folder'])
         runsim(confdict)
         with open('{}/graph{}/test/failhist.json'.format(date, i)) as file:
@@ -190,7 +193,7 @@ if __name__ == '__main__':
                     'failall': True, 'folder': args.folder, 'maxduration': args.maxduration,
                     'random': randomnumber, 'sourceshift': args.sourceshift}
         logging.info('Randomseed = ' + str(randomnumber))
-        folderlist = ['test{}'.format(i) for i in range(250)]
+        folderlist = ['test{}'.format(i) for i in range(10)]
         processes = []
         try:
             for element in folderlist:

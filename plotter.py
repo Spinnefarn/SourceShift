@@ -2,6 +2,8 @@
 # coding=utf-8
 """Will collect interesting logs from subfolders and draw plots."""
 import matplotlib.pylab as p
+p.rcParams['font.family'] = 'sans-serif'
+p.rcParams['font.size'] = 12
 import numpy as np
 import networkx as nx
 import json
@@ -47,9 +49,9 @@ def getairtime(mainfolder=None, folders=None):
                 incdicts['own'] = {}
             incdicts['own'][folder] = airtime
         elif config['sourceshift']:
-            if 'ss' not in incdicts.keys():
-                incdicts['ss'] = {}
-            incdicts['ss'][folder] = airtime
+            if 'source shift' not in incdicts.keys():
+                incdicts['source shift'] = {}
+            incdicts['source shift'][folder] = airtime
         elif config['david']:
             if 'MOREresilience' not in incdicts.keys():
                 incdicts['MOREresilience'] = {}
@@ -99,9 +101,9 @@ def getfailhist(mainfolder=None, folders=None):
                 incdicts['own'] = {}
             incdicts['own'][folder] = {key: value[0] for key, value in failhist.items()}
         elif config['sourceshift']:
-            if 'ss' not in incdicts.keys():
-                incdicts['ss'] = {}
-            incdicts['ss'][folder] = {key: value[0] for key, value in failhist.items()}
+            if 'source shift' not in incdicts.keys():
+                incdicts['source shift'] = {}
+            incdicts['source shift'][folder] = {key: value[0] for key, value in failhist.items()}
         elif config['david']:
             if 'MOREresilience' not in incdicts.keys():
                 incdicts['MOREresilience'] = {}
@@ -171,6 +173,159 @@ def parsefail(dic):
     return plotlist, stdlist
 
 
+def parseaircdf(mainfolder, folders, mode='regular'):
+    """Read and parse logs for plotting as cdf."""
+    incdicts, globconfig = {}, {}
+    for folder in folders:
+        airtime, config = readairtime('{}/{}'.format(mainfolder, folder))
+        if airtime is None or config is None:
+            print('Can not read log at {}/{}! Continue'.format(mainfolder, folder))
+            continue
+        try:
+            if config['own'] and config['sourceshift']:
+                if 'MORELESS' not in incdicts.keys():
+                    incdicts['MORELESS'] = {}
+                incdicts['MORELESS'][folder] = airtime
+            elif config['own']:
+                if 'own' not in incdicts.keys():
+                    incdicts['own'] = {}
+                incdicts['own'][folder] = airtime
+            elif config['sourceshift']:
+                if 'source shift' not in incdicts.keys():
+                    incdicts['source shift'] = {}
+                incdicts['source shift'][folder] = airtime
+            elif config['david']:
+                if 'MOREresilience' not in incdicts.keys():
+                    incdicts['MOREresilience'] = {}
+                incdicts['MOREresilience'][folder] = airtime
+            else:
+                if 'MORE' not in incdicts.keys():
+                    incdicts['MORE'] = {}
+                incdicts['MORE'][folder] = airtime
+            if not globconfig:
+                globconfig = config
+        except KeyError:
+            print('Uncomplete config in {}'.format(folder))
+    failure = set()
+    for protocol in incdicts.keys():
+        for folder in incdicts[protocol]:
+            failure |= set(incdicts[protocol][folder].keys())
+    plots = {}
+    for protocol in incdicts:
+        plots[protocol] = {}
+        for fail in failure:
+            counter = []
+            for folder in incdicts[protocol].keys():
+                try:
+                    counter.append(sum([len(incdicts[protocol][folder][fail][node])
+                                        for node in incdicts[protocol][folder][fail].keys()]))
+                except KeyError:
+                    pass
+            plots[protocol][fail] = counter
+    if mode == 'regular':
+        plotlist = {}
+        for protocol in plots:
+            plotlist[protocol] = []
+            for fail in failure:
+                if fail in plots[protocol].keys():
+                    plotlist[protocol].extend(plots[protocol][fail])
+                else:
+                    plotlist[protocol].extend(plots[protocol]['None'])
+        return plotlist
+    else:
+        gainlist = {}
+        for protocol in plots:
+            gainlist[protocol] = []
+            for fail in failure:
+                if fail in plots[protocol].keys() and len(plots[protocol][fail]):
+                    proval = statistics.mean(plots[protocol][fail])
+                else:
+                    proval = statistics.mean(plots[protocol]['None'])
+                if fail in plots['MORE'].keys() and len(plots['MORE'][fail]):
+                    moreval = statistics.mean(plots['MORE'][fail])
+                else:
+                    moreval = statistics.mean(plots['MORE']['None'])
+                gainlist[protocol].append(((proval/moreval) - 1) * 100)
+        return gainlist
+
+
+def parsefailcdf(mainfolder, folders, mode='regular'):
+    """Read and parse logs for plotting as cdf."""
+    incdicts = {}
+    for folder in folders:
+        try:
+            failhist, config = readfailhist('{}/{}'.format(mainfolder, folder))
+        except FileNotFoundError:
+            print('No logs found at {}/{}'.format(mainfolder, folder))
+            continue
+        try:
+            if config['own'] and config['sourceshift']:
+                if 'MORELESS' not in incdicts.keys():
+                    incdicts['MORELESS'] = {}
+                incdicts['MORELESS'][folder] = {key: value[0] for key, value in failhist.items()}
+            elif config['own']:
+                if 'own' not in incdicts.keys():
+                    incdicts['own'] = {}
+                incdicts['own'][folder] = {key: value[0] for key, value in failhist.items()}
+            elif config['sourceshift']:
+                if 'source shift' not in incdicts.keys():
+                    incdicts['source shift'] = {}
+                incdicts['source shift'][folder] = {key: value[0] for key, value in failhist.items()}
+            elif config['david']:
+                if 'MOREresilience' not in incdicts.keys():
+                    incdicts['MOREresilience'] = {}
+                incdicts['MOREresilience'][folder] = {key: value[0] for key, value in failhist.items()}
+            else:
+                if 'MORE' not in incdicts.keys():
+                    incdicts['MORE'] = {}
+                incdicts['MORE'][folder] = {key: value[0] for key, value in failhist.items()}
+        except KeyError:
+            print('Uncomplete config in {}'.format(folder))
+    failure = set()
+    for protocol in incdicts.keys():
+        for folder in incdicts[protocol]:
+            failure |= set(incdicts[protocol][folder].keys())
+    plots = {}
+    for protocol in incdicts.keys():
+        plots[protocol] = {}
+        if len(incdicts[protocol]) > 1:
+            for fail in failure:
+                plots[protocol][fail] = []
+                counter = []
+                for folder in incdicts[protocol].keys():
+                    try:
+                        counter.append(incdicts[protocol][folder][fail])
+                    except KeyError:
+                        pass
+                if len(counter):
+                    plots[protocol][fail].extend(counter)
+    if mode == 'regular':
+        plotlist = {}
+        for protocol in plots:
+            plotlist[protocol] = []
+            for fail in failure:
+                if fail in plots[protocol].keys():
+                    plotlist[protocol].extend(plots[protocol][fail])
+                else:
+                    plotlist[protocol].extend(plots[protocol]['None'])
+        return plotlist
+    else:
+        gainlist = {}
+        for protocol in plots:
+            gainlist[protocol] = []
+            for fail in failure:
+                if fail in plots[protocol].keys() and len(plots[protocol][fail]):
+                    proval = statistics.mean(plots[protocol][fail])
+                else:
+                    proval = statistics.mean(plots[protocol]['None'])
+                if fail in plots['MORE'].keys() and len(plots['MORE'][fail]):
+                    moreval = statistics.mean(plots['MORE'][fail])
+                else:
+                    moreval = statistics.mean(plots['MORE']['None'])
+                gainlist[protocol].append(((proval/moreval) - 1) * 100)
+        return gainlist
+
+
 def readairtime(folder):
     """Read logs from folder."""
     airtime, config, failhist = None, None, None
@@ -214,14 +369,14 @@ def readgraph(folder):
 
 def plotairtime(mainfolder=None, folders=None):
     """Plot airtime for different failures."""
-    p.figure(figsize=(20, 10))
+    p.figure(figsize=(8.45, 6.18))
     failures, plotlist, stdlist = getairtime(mainfolder, folders)
     width = 0.9/len(plotlist.keys())
-    for protocol in plotlist:
+    for protocol in sorted(plotlist.keys()):
         ind = [x + list(sorted(plotlist.keys())).index(protocol) * width for x in range(len(failures))]
         p.bar(ind, plotlist[protocol], width=width, label=protocol, yerr=stdlist[protocol],
               error_kw={'elinewidth': width/5})
-    p.legend(loc='upper right')
+    p.legend(loc='best')
     p.ylabel('Needed airtime in timeslots')
     p.xlabel('Failure')
     p.yscale('log')
@@ -229,6 +384,7 @@ def plotairtime(mainfolder=None, folders=None):
     p.title('Needed transmissions over failures for different protocols')
     ind = [x + width/2 for x in range(len(failures))]
     p.xticks(ind, labels=failures, rotation=90)
+    p.grid('True')
     p.tight_layout()
     p.savefig('{}/airtimefail.pdf'.format(mainfolder))
     p.close()
@@ -240,71 +396,24 @@ def plotaircdf(mainfolder=None, folders=None):
         folders = []
         cmain = [folder for folder in os.listdir(mainfolder) if os.path.isdir('{}/{}'.format(mainfolder, folder))]
         for subfolder in cmain:
-            folders.extend(['{}/{}/{}'.format(mainfolder, subfolder, subsubfolder)
+            folders.extend(['{}/{}'.format(subfolder, subsubfolder)
                             for subsubfolder in os.listdir('{}/{}'.format(mainfolder, subfolder))
                             if os.path.isdir('{}/{}/{}'.format(mainfolder, subfolder, subsubfolder))])
     if mainfolder is None:
         mainfolder = ''
-    globconfig = {}
-    incdicts = {}
-    for folder in folders:
-        airtime, config = readairtime('{}/{}'.format(mainfolder, folder))
-        if airtime is None or config is None:
-            print('Can not read log at {}/{}! Continue'.format(mainfolder, folder))
-            continue
-        elif not globconfig:
-            globconfig = config
-        try:
-            if config['own'] and config['sourceshift']:
-                if 'MORELESS' not in incdicts.keys():
-                    incdicts['MORELESS'] = {}
-                incdicts['MORELESS'][folder] = airtime
-            elif config['own']:
-                if 'own' not in incdicts.keys():
-                    incdicts['own'] = {}
-                incdicts['own'][folder] = airtime
-            elif config['sourceshift']:
-                if 'ss' not in incdicts.keys():
-                    incdicts['ss'] = {}
-                incdicts['ss'][folder] = airtime
-            elif config['david']:
-                if 'MOREresilience' not in incdicts.keys():
-                    incdicts['MOREresilience'] = {}
-                incdicts['MOREresilience'][folder] = airtime
-            else:
-                if 'MORE' not in incdicts.keys():
-                    incdicts['MORE'] = {}
-                incdicts['MORE'][folder] = airtime
-        except KeyError:
-            print('Uncomplete config in {}'.format(folder))
-    plot = {}
-    for protocol in incdicts:
-        firstfolder = list(incdicts[protocol].keys())[0]
-        plot[protocol] = {}
-        for fail in incdicts[protocol][firstfolder].keys():
-            counter = []
-            for folder in incdicts[protocol].keys():
-                try:
-                    counter.append(sum([len(incdicts[protocol][folder][fail][node])
-                                        for node in incdicts[protocol][folder][fail].keys()]))
-                except KeyError:
-                    pass
-            plot[protocol][fail] = counter
-    plotlist = {}
-    for protocol in plot:
-        plotlist[protocol] = []
-        for fail in sorted(plot[protocol].keys()):
-            plotlist[protocol].extend(plot[protocol][fail])
-    p.figure(figsize=(10, 10))
+    plotlist = parseaircdf(mainfolder, folders)
+    p.figure(figsize=(4.2, 6.18))
     for protocol in sorted(plotlist.keys()):
         p.plot(sorted(plotlist[protocol]), np.linspace(0, 1, len(plotlist[protocol])), label=protocol, alpha=0.8)
     p.title('Used airtime per protocol')
-    p.ylabel('Probability')
+    p.ylabel('Fraction of Airtime')
     p.xlabel('Airtime in transmissions')
     p.ylim([0, 1])
     # p.ylim([0.8, 1])
-    p.xlim(left=0)
-    p.legend(loc='lower right')
+    # p.xlim(left=0)
+    p.xscale('log')
+    p.grid('True')
+    p.legend(loc='best')
     p.tight_layout()
     p.savefig('{}/airtimecdf.pdf'.format(mainfolder))
     p.close()
@@ -321,65 +430,19 @@ def plotlatcdf(mainfolder=None, folders=None):
                             if os.path.isdir('{}/{}/{}'.format(mainfolder, subfolder, subsubfolder))])
     if mainfolder is None:
         mainfolder = ''
-    incdicts = {}
-    for folder in folders:
-        try:
-            failhist, config = readfailhist('{}/{}'.format(mainfolder, folder))
-        except FileNotFoundError:
-            print('No logs found at {}/{}'.format(mainfolder, folder))
-            continue
-        try:
-            if config['own'] and config['sourceshift']:
-                if 'MORELESS' not in incdicts.keys():
-                    incdicts['MORELESS'] = {}
-                incdicts['MORELESS'][folder] = {key: value[0] for key, value in failhist.items()}
-            elif config['own']:
-                if 'own' not in incdicts.keys():
-                    incdicts['own'] = {}
-                incdicts['own'][folder] = {key: value[0] for key, value in failhist.items()}
-            elif config['sourceshift']:
-                if 'ss' not in incdicts.keys():
-                    incdicts['ss'] = {}
-                incdicts['ss'][folder] = {key: value[0] for key, value in failhist.items()}
-            elif config['david']:
-                if 'MOREresilience' not in incdicts.keys():
-                    incdicts['MOREresilience'] = {}
-                incdicts['MOREresilience'][folder] = {key: value[0] for key, value in failhist.items()}
-            else:
-                if 'MORE' not in incdicts.keys():
-                    incdicts['MORE'] = {}
-                incdicts['MORE'][folder] = {key: value[0] for key, value in failhist.items()}
-        except KeyError:
-            print('Uncomplete config in {}'.format(folder))
-    plots = {}
-    for protocol in incdicts.keys():
-        plots[protocol] = {}
-        if len(incdicts[protocol]) > 1:
-            firstfolder = list(incdicts[protocol].keys())[0]
-            for fail in incdicts[protocol][firstfolder].keys():
-                plots[protocol][fail] = []
-                counter = []
-                for folder in incdicts[protocol].keys():
-                    try:
-                        counter.append(incdicts[protocol][folder][fail])
-                    except KeyError:
-                        pass
-                plots[protocol][fail].extend(counter)
-    plotlist = {}
-    for protocol in plots:
-        plotlist[protocol] = []
-        for fail in plots[protocol].keys():
-            plotlist[protocol].extend(plots[protocol][fail])
-    p.figure(figsize=(10, 10))
+    plotlist = parsefailcdf(mainfolder, folders)
+    p.figure(figsize=(4.2, 6.18))
     for protocol in sorted(plotlist.keys()):
         p.plot(sorted(plotlist[protocol]), np.linspace(0, 1, len(plotlist[protocol])), label=protocol, alpha=0.8)
     p.title('Needed latency per protocol')
-    p.ylabel('Probability')
+    p.ylabel('Fraction of Latency')
     p.xlabel('Latency in timeslots')
     p.ylim([0, 1])
     # p.ylim([0.8, 1])
-    p.xlim(left=0)
-    p.legend(loc='lower right')
+    # p.xlim(left=0)
+    p.xscale('log')
+    p.grid('True')
+    p.legend(loc='best')
     p.tight_layout()
     p.savefig('{}/latencycdf.pdf'.format(mainfolder))
     p.close()
@@ -389,11 +452,12 @@ def plotfailhist(mainfolder=None, folders=None):
     """Plot time to finish transmission diagram to compare different simulations."""
     failures, plotlist, stdlist, config = getfailhist(mainfolder, folders)
     width = 0.9/len(plotlist.keys())
-    for protocol in plotlist:
+    p.figure(figsize=(8.45, 6.18))
+    for protocol in sorted(plotlist.keys()):
         ind = [x + list(sorted(plotlist.keys())).index(protocol) * width for x in range(len(failures))]
         p.bar(ind, plotlist[protocol], width=width, label=protocol, yerr=stdlist[protocol],
               error_kw={'elinewidth': width/5})
-    p.legend(loc='upper right')
+    p.legend(loc='best')
     p.yscale('log')
     p.ylabel('Needed Latency in timeslots')
     p.xlabel('Failure')
@@ -406,6 +470,7 @@ def plotfailhist(mainfolder=None, folders=None):
     p.title('Needed timeslots over failures for different protocols')
     ind = [x + 0.5 for x in range(len(failures))]
     p.xticks(ind, labels=failures, rotation=90)
+    p.grid('True')
     p.tight_layout()
     p.savefig('{}/timeslotfail.pdf'.format(mainfolder))
     p.close()
@@ -428,7 +493,7 @@ def plotgain(mainfolder=None, folders=None):
         # for protocol in gainlist:
         #    ind = [x + list(sorted(plotlist.keys())).index(protocol) * width for x in range(len(failures))]
         p.bar(range(len(gainlist.keys())), gainlist.values(), width=width)
-        # p.legend(loc='upper left')
+        # p.legend(loc='best')
         if mode == 'latency':
             p.title('Latency compared to MORE')
         else:
@@ -445,6 +510,44 @@ def plotgain(mainfolder=None, folders=None):
             p.savefig('{}/latencygain.pdf'.format(mainfolder))
         else:
             p.savefig('{}/airtimegain.pdf'.format(mainfolder))
+        p.close()
+
+
+def plotgaincdf(mainfolder=None):
+    """Plot gain in latency and airtime as cdf."""
+    if mainfolder is None:
+        return
+    folders = []
+    cmain = [folder for folder in os.listdir(mainfolder) if os.path.isdir('{}/{}'.format(mainfolder, folder))]
+    for subfolder in cmain:
+        folders.extend(['{}/{}'.format(subfolder, subsubfolder)
+                        for subsubfolder in os.listdir('{}/{}'.format(mainfolder, subfolder))
+                        if os.path.isdir('{}/{}/{}'.format(mainfolder, subfolder, subsubfolder))])
+    for mode in ['airtime', 'latency']:
+        if mode == 'latency':
+            gainlist = parsefailcdf(mainfolder, folders, mode='gain')
+        else:
+            gainlist = parseaircdf(mainfolder, folders, mode='gain')
+        p.figure(figsize=(4.2, 6.18))
+        for protocol in sorted(gainlist.keys()):
+            p.plot(sorted(gainlist[protocol]), np.linspace(0, 1, len(gainlist[protocol])), label=protocol, alpha=0.8)
+        if mode == 'latency':
+            p.title('Difference in latency compared to MORE')
+        else:
+            p.title('Difference in airtime compared to MORE')
+        p.ylabel('Fraction of Gain')
+        p.xlabel('Difference in percent')
+        p.ylim([0, 1])
+        # p.ylim([0.8, 1])
+        # p.xlim(left=0)
+        # p.xscale('log')
+        p.grid('True')
+        p.legend(loc='best')
+        p.tight_layout()
+        if mode == 'latency':
+            p.savefig('{}/latgaincdf.pdf'.format(mainfolder))
+        else:
+            p.savefig('{}/airgaincdf.pdf'.format(mainfolder))
         p.close()
 
 
@@ -506,8 +609,8 @@ def plotgraph(folders=None):
 
 if __name__ == '__main__':
     now = datetime.datetime.now()
-    # date = int(str(now.year) + str(now.month) + str(now.day))
-    date = '20181116'
+    date = str(int(str(now.year) + str(now.month) + str(now.day)))
+    date = '../20181123'
     for i in range(10):
         folderlist = []
         folderlst = []
@@ -515,10 +618,13 @@ if __name__ == '__main__':
         folderlist.extend(['{}/graph{}/test{}'.format(date, i, j) for j in range(40)])
         mfolder = '{}/graph{}'.format(date, i)
         # folderlst.append('test'.format(i))
-        folderlst.extend(['test{}'.format(j) for j in range(250)])
+        folderlst.extend(['test{}'.format(j) for j in range(10)])
         plotaircdf('{}/graph{}'.format(date, i), folderlst)
         plotlatcdf('{}/graph{}'.format(date, i), folderlst)
-        # plotairtime(mfolder, folderlst)
-        # plotgain(mfolder, folderlst)
-        # plotfailhist(mfolder, folderlst)
+        plotairtime(mfolder, folderlst)
+        plotgain(mfolder, folderlst)
+        plotfailhist(mfolder, folderlst)
+    plotaircdf(date)
+    plotlatcdf(date)
+    plotgaincdf(date)
     # plotgraph(folders=folderlist)
