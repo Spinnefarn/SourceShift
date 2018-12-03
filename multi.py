@@ -132,7 +132,7 @@ def cleanfolder(folder):
 
 def setmode(config, number):
     """Set config mode."""
-    mode = ['m', 'o', 'ss', 'oss', 'david']
+    mode = ['oss', 'o', 'ss', 'davidss', 'david', 'm']
     try:
         number = int(number) % len(mode)
     except (TypeError, ValueError):
@@ -145,6 +145,8 @@ def setmode(config, number):
         config['own'], config['sourceshift'], config['david'] = False, True, 0.0
     elif mode[number] == 'oss':
         config['own'], config['sourceshift'], config['david'] = True, True, 0.0
+    elif mode[number] == 'davidss':
+        config['own'], config['sourceshift'], config['david'] = False, True, 1.0
     elif mode[number] == 'david':
         config['own'], config['sourceshift'], config['david'] = False, False, 1.0
     return config
@@ -159,6 +161,8 @@ def plotall(mfolder, counter, liste):
     plotter.plotlatcdf('{0}/graph{1}'.format(mfolder, counter), liste)
     plotter.plotaircdf(mfolder)
     plotter.plotlatcdf(mfolder)
+    plotter.plotperhop(mfolder)
+    plotter.plotperhop(mfolder, kind='mcut')
     plotter.plotgraph(['{0}/graph{1}/test'.format(mfolder, counter)])  # Dont plot all networks, just twice per protocol
     plotter.plotgraph(['{0}/graph{1}/{2}'.format(mfolder, counter, folder) for folder in liste[:10]])
 
@@ -170,10 +174,10 @@ if __name__ == '__main__':
         filename='main.log', level=llevel, format='%(asctime)s %(processName)s\t %(levelname)s\t %(message)s',
         filemode='w')
     now = datetime.datetime.now()
-    date = str(now.year) + str(now.month) + str(now.day) + 'a'
+    date = str(now.year) + str(now.month) + str(now.day)
     # date = 'test31'
     plot = None
-    for i in range(100):
+    for i in range(3):
         logging.info('Created new graph at graph{}'.format(i))
         confdict = {'json': args.json, 'randconf': args.amount, 'coding': args.coding, 'fieldsize': args.fieldsize,
                     'sendam': args.sendam, 'own': args.own, 'failedge': args.failedge, 'failnode': args.failnode,
@@ -193,15 +197,16 @@ if __name__ == '__main__':
                     'failall': True, 'folder': args.folder, 'maxduration': args.maxduration,
                     'random': randomnumber, 'sourceshift': args.sourceshift}
         logging.info('Randomseed = ' + str(randomnumber))
-        folderlist = ['test{}'.format(i) for i in range(10)]
+        folderlist = ['test{}'.format(i) for i in range(12)]
         processes = []
         try:
             for element in folderlist:
                 cleanfolder('{}/graph{}/{}'.format(date, i, element))
                 confdict['json'] = '{}/graph{}/test/graph.json'.format(date, i)
+                # confdict['json'] = 'demograph2.json'
                 confdict['folder'] = '{}/graph{}/{}'.format(date, i, element)
                 confdict = setmode(confdict, element[-1])
-                confdict['maxduration'] = 20 * failhist['None'][0]
+                confdict['maxduration'] = 100 * failhist['None'][0]
                 while True:
                     if cpu_count() > len(active_children()):
                         launchsubp(confdict)

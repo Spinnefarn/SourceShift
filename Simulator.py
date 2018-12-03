@@ -25,13 +25,14 @@ class Simulator:
     """Round based simulator to simulate traffic in meshed network."""
     def __init__(self, jsonfile=None, coding=None, fieldsize=2, sendall=0, own=True, edgefail=None, nodefail=None,
                  allfail=False, randcof=(10, 0.5), folder='.', maxduration=0, randomseed=None, sourceshift=False,
-                 david=False):
+                 david=False, edgefailprob=0.1):
         self.airtime = {'None': {}}
         self.sourceshift = sourceshift
         self.david = david
         self.edgefail = edgefail
         self.nodefail = nodefail
         self.allfail = allfail
+        self.edgefailprob = edgefailprob
         logging.debug('Random seed: '.format(randomseed))
         self.random = randomseed
         self.maxduration = maxduration
@@ -47,6 +48,9 @@ class Simulator:
         self.batch = 0
         self.sendam = sendall
         self.batchhist = []
+        self.resilience = [1, 1]
+        self.mcut = []
+        self.dijkstra = []
         self.coding = coding
         self.fieldsize = fieldsize
         self.pos = None
@@ -136,6 +140,31 @@ class Simulator:
             node.seteotx(eotx[str(node)])
             self.graph.nodes[str(node)]['EOTX'] = eotx[str(node)]
 
+    # noinspection PyTypeChecker
+    def calcres(self):
+        """Calculate resilience of network based on used edges with no failure."""
+        mincut = nx.minimum_edge_cut(self.graph, s='S', t='D')
+        self.resilience[0] = 1 - (self.edgefailprob ** len(mincut))
+        logging.info('Resilience for graph is {}'.format(self.resilience[0]))
+        if self.interresting:
+            intedges = [element for element in self.interresting if len(element) == 2]
+            edgelist = [(element[0], element[1], self.graph.edges[element[0], element[1]]['weight'])
+                        for element in intedges]
+            resg = nx.Graph()
+            resg.add_weighted_edges_from(edgelist)
+            mincut = nx.minimum_edge_cut(resg, s='S', t='D')
+            self.resilience[1] = 1 - (self.edgefailprob ** len(mincut))
+            if self.david:
+                logging.info('Resilience for MOREresilience is {}'.format(self.resilience[1]))
+            elif self.sourceshift and self.own:
+                logging.info('Resilience for MORELESS is {}'.format(self.resilience[1]))
+            elif self.sourceshift:
+                logging.info('Resilience for source shift is {}'.format(self.resilience[1]))
+            elif self.own:
+                logging.info('Resilience for own approach is {}'.format(self.resilience[1]))
+            else:
+                logging.info('Resilience for MORE is {}'.format(self.resilience[1]))
+
     def calc_tx_credit(self, david=False):
         """Calculate the amount of tx credit the receiver gets."""
         if david:
@@ -220,7 +249,7 @@ class Simulator:
         if self.maxduration:
             maxval = self.maxduration
         else:
-            maxval = 20 * self.batchhist[0]
+            maxval = 100 * self.batchhist[0]
         if len(self.batchhist) == 1:
             if self.timestamp - self.batchhist[0] >= maxval:
                 logging.info('Stopped batch after {} timesteps'.format(self.timestamp - self.batchhist[0]))
@@ -427,6 +456,7 @@ class Simulator:
             if str(node) not in 'SD' and node.getsent():
                 self.interresting.append(str(node))
         self.interresting.extend(usededges)
+        self.calcres()
         self.checkconnection()      # Fails who break the graph are also not interresting
         logging.debug('Interresting failures are: {}'.format(self.interresting))
 
@@ -479,6 +509,8 @@ class Simulator:
             self.calceotx()
             self.calc_tx_credit()
             logging.info('Created network from JSON successfully!')
+        self.mcut = nx.minimum_edge_cut(self.graph, s='S', t='D')
+        self.dijkstra = nx.shortest_path(self.graph, source='S', target='D', weight='weight')
         if self.david:
             self.calcdeotx()
 
@@ -589,7 +621,8 @@ class Simulator:
         config = {'json': self.json, 'coding': self.coding, 'fieldsize': self.fieldsize, 'sendam': self.sendam,
                   'own': self.own, 'failedge': self.edgefail, 'failnode': self.nodefail, 'failall': self.allfail,
                   'randconf': self.randcof, 'folder': self.folder, 'maxduration': self.maxduration,
-                  'randomseed': self.random, 'sourceshift': self.sourceshift, 'david': self.david}
+                  'randomseed': self.random, 'sourceshift': self.sourceshift, 'david': self.david,
+                  'resilience': self.resilience, 'path': list(self.dijkstra), 'mcut': list(self.mcut)}
         with open('{}/config.json'.format(self.folder), 'w') as file:
             json.dump(config, file)
         for kind in ['overhearing', 'real']:
