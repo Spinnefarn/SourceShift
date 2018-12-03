@@ -294,10 +294,16 @@ class Simulator:
         for node in self.nodes:
             if node.getcredit() != float('inf') and node.isdone():
                 for neighbor in self.graph.neighbors(str(node)):
-                    for neighbornode in self.nodes:
-                        if str(neighbornode) == neighbor:
-                            if not neighbornode.isdone() and node.geteotx() > neighbornode.geteotx():
-                                node.becomesource()
+                    if self.david:
+                        david = self.graph.nodes[str(node)]['DEOTX'] > self.graph.nodes[neighbor]['DEOTX']
+                    else:
+                        david = False
+                    if self.graph.nodes[str(node)]['EOTX'] > self.graph.nodes[neighbor]['EOTX'] or david:
+                        for neighbornode in self.nodes:
+                            if str(neighbornode) == neighbor:
+                                if not neighbornode.isdone() or neighbornode.getbatch() < node.getbatch():
+                                    node.becomesource()
+                                break
 
     def createnetwork(self, config=None, randcof=(10, 0.5)):
         """Create network using networkx library based on configuration given as dict."""
