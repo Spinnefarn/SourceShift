@@ -51,9 +51,9 @@ def getairtime(mainfolder=None, folders=None):
                 incdicts['MORERESS'] = {}
             incdicts['MORERESS'][folder] = airtime
         elif config['own']:
-            if 'own' not in incdicts.keys():
-                incdicts['own'] = {}
-            incdicts['own'][folder] = airtime
+            if 'send back' not in incdicts.keys():
+                incdicts['send back'] = {}
+            incdicts['send back'][folder] = airtime
         elif config['sourceshift']:
             if 'source shift' not in incdicts.keys():
                 incdicts['source shift'] = {}
@@ -117,11 +117,11 @@ def getairtimemode(mainfolder=None, folders=None, mode='perhop'):
                 incdicts['MORERESS'][ident] = {}
             incdicts['MORERESS'][ident][folder] = airtime
         elif config['own']:
-            if 'own' not in incdicts.keys():
-                incdicts['own'] = {}
-            if ident not in incdicts['own'].keys():
-                incdicts['own'][ident] = {}
-            incdicts['own'][ident][folder] = airtime
+            if 'send back' not in incdicts.keys():
+                incdicts['send back'] = {}
+            if ident not in incdicts['send back'].keys():
+                incdicts['send back'][ident] = {}
+            incdicts['send back'][ident][folder] = airtime
         elif config['sourceshift']:
             if 'source shift' not in incdicts.keys():
                 incdicts['source shift'] = {}
@@ -185,9 +185,9 @@ def getfailhist(mainfolder=None, folders=None):
                 incdicts['MORERESS'] = {}
             incdicts['MORERESS'][folder] = {key: value[0] for key, value in failhist.items()}
         elif config['own']:
-            if 'own' not in incdicts.keys():
-                incdicts['own'] = {}
-            incdicts['own'][folder] = {key: value[0] for key, value in failhist.items()}
+            if 'send back' not in incdicts.keys():
+                incdicts['send back'] = {}
+            incdicts['send back'][folder] = {key: value[0] for key, value in failhist.items()}
         elif config['sourceshift']:
             if 'source shift' not in incdicts.keys():
                 incdicts['source shift'] = {}
@@ -251,11 +251,11 @@ def getfailhistmode(mainfolder=None, folders=None, mode='perhop'):
                 incdicts['MORERESS'][ident] = {}
             incdicts['MORERESS'][ident][folder] = {key: value[0] for key, value in failhist.items()}
         elif config['own']:
-            if 'own' not in incdicts.keys():
-                incdicts['own'] = {}
-            if ident not in incdicts['own'].keys():
-                incdicts['own'][ident] = {}
-            incdicts['own'][ident][folder] = {key: value[0] for key, value in failhist.items()}
+            if 'send back' not in incdicts.keys():
+                incdicts['send back'] = {}
+            if ident not in incdicts['send back'].keys():
+                incdicts['send back'][ident] = {}
+            incdicts['send back'][ident][folder] = {key: value[0] for key, value in failhist.items()}
         elif config['sourceshift']:
             if 'source shift' not in incdicts.keys():
                 incdicts['source shift'] = {}
@@ -357,9 +357,9 @@ def parseaircdf(mainfolder, folders, mode='regular'):
                     incdicts['MORERESS'] = {}
                 incdicts['MORERESS'][folder] = airtime
             elif config['own']:
-                if 'own' not in incdicts.keys():
-                    incdicts['own'] = {}
-                incdicts['own'][folder] = airtime
+                if 'send back' not in incdicts.keys():
+                    incdicts['send back'] = {}
+                incdicts['send back'][folder] = airtime
             elif config['sourceshift']:
                 if 'source shift' not in incdicts.keys():
                     incdicts['source shift'] = {}
@@ -438,9 +438,9 @@ def parsefailcdf(mainfolder, folders, mode='regular'):
                     incdicts['MORERESS'] = {}
                 incdicts['MORERESS'][folder] = {key: value[0] for key, value in failhist.items()}
             elif config['own']:
-                if 'own' not in incdicts.keys():
-                    incdicts['own'] = {}
-                incdicts['own'][folder] = {key: value[0] for key, value in failhist.items()}
+                if 'send back' not in incdicts.keys():
+                    incdicts['send back'] = {}
+                incdicts['send back'][folder] = {key: value[0] for key, value in failhist.items()}
             elif config['sourceshift']:
                 if 'source shift' not in incdicts.keys():
                     incdicts['source shift'] = {}
@@ -583,21 +583,30 @@ def plotaircdf(mainfolder=None, folders=None):
     if mainfolder is None:
         mainfolder = ''
     plotlist = parseaircdf(mainfolder, folders)
-    p.figure(figsize=(4.2, 6.18))
-    for protocol in sorted(plotlist.keys()):
-        p.plot(sorted(plotlist[protocol]), np.linspace(0, 1, len(plotlist[protocol])), label=protocol, alpha=0.8)
-    p.title('Used airtime per protocol')
-    p.ylabel('Fraction of Airtime')
-    p.xlabel('Airtime in transmissions')
-    p.ylim([0, 1])
-    # p.ylim([0.8, 1])
-    # p.xlim(left=0)
-    p.xscale('log')
-    p.grid(True)
-    p.legend(loc='best')
-    p.tight_layout()
-    p.savefig('{}/airtimecdf.pdf'.format(mainfolder))
-    p.close()
+    for mode in ['regular', 'close']:
+        if mode == 'regular':
+            p.figure(figsize=(4.2, 6.18))
+        else:
+            p.figure(figsize=(6.18, 4.2))
+        for protocol in sorted(plotlist.keys()):
+            p.plot(sorted(plotlist[protocol]), np.linspace(0, 1, len(plotlist[protocol])), label=protocol, alpha=0.8)
+        p.title('Used airtime per protocol')
+        p.ylabel('Fraction of Airtime')
+        p.xlabel('Airtime in transmissions')
+        # p.ylim([0.8, 1])
+        # p.xlim(left=0)
+        p.xscale('log')
+        p.xticks(rotation=90)
+        p.grid(True)
+        p.legend(loc='best')
+        p.tight_layout()
+        if mode == 'regular':
+            p.ylim([0, 1])
+            p.savefig('{}/airtimecdf.pdf'.format(mainfolder))
+        else:
+            p.ylim([0.9, 1])
+            p.savefig('{}/airclosecdf.pdf'.format(mainfolder))
+        p.close()
 
 
 def plotlatcdf(mainfolder=None, folders=None):
@@ -612,21 +621,30 @@ def plotlatcdf(mainfolder=None, folders=None):
     if mainfolder is None:
         mainfolder = ''
     plotlist = parsefailcdf(mainfolder, folders)
-    p.figure(figsize=(4.2, 6.18))
-    for protocol in sorted(plotlist.keys()):
-        p.plot(sorted(plotlist[protocol]), np.linspace(0, 1, len(plotlist[protocol])), label=protocol, alpha=0.8)
-    p.title('Needed latency per protocol')
-    p.ylabel('Fraction of Latency')
-    p.xlabel('Latency in timeslots')
-    p.ylim([0, 1])
-    # p.ylim([0.8, 1])
-    # p.xlim(left=0)
-    p.xscale('log')
-    p.grid(True)
-    p.legend(loc='best')
-    p.tight_layout()
-    p.savefig('{}/latencycdf.pdf'.format(mainfolder))
-    p.close()
+    for mode in ['regular', 'close']:
+        if mode == 'regular':
+            p.figure(figsize=(4.2, 6.18))
+        else:
+            p.figure(figsize=(6.18, 4.2))
+        for protocol in sorted(plotlist.keys()):
+            p.plot(sorted(plotlist[protocol]), np.linspace(0, 1, len(plotlist[protocol])), label=protocol, alpha=0.8)
+        p.title('Needed latency per protocol')
+        p.ylabel('Fraction of Latency')
+        p.xlabel('Latency in timeslots')
+        # p.ylim([0.8, 1])
+        # p.xlim(left=0)
+        p.xscale('log')
+        p.xticks(rotation=90)
+        p.grid(True)
+        p.legend(loc='best')
+        p.tight_layout()
+        if mode == 'regular':
+            p.ylim([0, 1])
+            p.savefig('{}/latencycdf.pdf'.format(mainfolder))
+        else:
+            p.ylim([0.9, 1])
+            p.savefig('{}/latclosecdf.pdf'.format(mainfolder))
+        p.close()
 
 
 def plotfailhist(mainfolder=None, folders=None):
@@ -837,13 +855,13 @@ def plotperhop(mainfolder=None, kind='perhop'):
 
 if __name__ == '__main__':
     now = datetime.datetime.now()
-    date = str(int(str(now.year) + str(now.month) + str(now.day)))
-    # date = '../expdav'
+    # date = str(int(str(now.year) + str(now.month) + str(now.day)))
+    date = '../expnodav'
     folderlist = []
     for i in range(1):
         folderlst = []
         # folderlist.append('{}/graph{}/test'.format(date, i))
-        folderlist.extend(['{}/graph{}/test{}'.format(date, i, j) for j in range(40)])
+        folderlist.extend(['{}/graph{}/test{}'.format(date, i, j) for j in range(100)])
         mfolder = '{}/graph{}'.format(date, i)
         # folderlst.append('test'.format(i))
         folderlst.extend(['test{}'.format(j) for j in range(10)])
@@ -857,4 +875,4 @@ if __name__ == '__main__':
     plotgaincdf(date)
     plotperhop(date)
     plotperhop(date, kind='mcut')
-    plotgraph(folders=folderlist)
+    # plotgraph(folders=folderlist)

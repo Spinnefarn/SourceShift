@@ -174,10 +174,10 @@ if __name__ == '__main__':
         filename='main.log', level=llevel, format='%(asctime)s %(processName)s\t %(levelname)s\t %(message)s',
         filemode='w')
     now = datetime.datetime.now()
-    date = str(now.year) + str(now.month) + str(now.day)
-    # date = 'test31'
+    # date = str(now.year) + str(now.month) + str(now.day)
+    date = '../expdav'
     plot = None
-    for i in range(3):
+    for i in range(1):
         logging.info('Created new graph at graph{}'.format(i))
         confdict = {'json': args.json, 'randconf': args.amount, 'coding': args.coding, 'fieldsize': args.fieldsize,
                     'sendam': args.sendam, 'own': args.own, 'failedge': args.failedge, 'failnode': args.failnode,
@@ -197,13 +197,13 @@ if __name__ == '__main__':
                     'failall': True, 'folder': args.folder, 'maxduration': args.maxduration,
                     'random': randomnumber, 'sourceshift': args.sourceshift}
         logging.info('Randomseed = ' + str(randomnumber))
-        folderlist = ['test{}'.format(i) for i in range(12)]
+        folderlist = ['test{}'.format(i) for i in range(60)]
         processes = []
         try:
             for element in folderlist:
                 cleanfolder('{}/graph{}/{}'.format(date, i, element))
                 confdict['json'] = '{}/graph{}/test/graph.json'.format(date, i)
-                # confdict['json'] = 'demograph2.json'
+                confdict['json'] = 'demograph.json'
                 confdict['folder'] = '{}/graph{}/{}'.format(date, i, element)
                 confdict = setmode(confdict, element[-1])
                 confdict['maxduration'] = 100 * failhist['None'][0]
