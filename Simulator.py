@@ -41,7 +41,7 @@ class Simulator:
         self.folder = folder
         self.prevfail = None
         self.failhist = {}
-        self.interresting = []
+        self.interesting = []
         self.nodes = []
         self.ranklist = {}
         self.z = {}
@@ -140,31 +140,6 @@ class Simulator:
             node.seteotx(eotx[str(node)])
             self.graph.nodes[str(node)]['EOTX'] = eotx[str(node)]
 
-    # noinspection PyTypeChecker
-    def calcres(self):
-        """Calculate resilience of network based on used edges with no failure."""
-        mincut = nx.minimum_edge_cut(self.graph, s='S', t='D')
-        self.resilience[0] = 1 - (self.edgefailprob ** len(mincut))
-        logging.info('Resilience for graph is {}'.format(self.resilience[0]))
-        if self.interresting:
-            intedges = [element for element in self.interresting if len(element) == 2]
-            edgelist = [(element[0], element[1], self.graph.edges[element[0], element[1]]['weight'])
-                        for element in intedges]
-            resg = nx.Graph()
-            resg.add_weighted_edges_from(edgelist)
-            mincut = nx.minimum_edge_cut(resg, s='S', t='D')
-            self.resilience[1] = 1 - (self.edgefailprob ** len(mincut))
-            if self.david:
-                logging.info('Resilience for MOREresilience is {}'.format(self.resilience[1]))
-            elif self.sourceshift and self.own:
-                logging.info('Resilience for MORELESS is {}'.format(self.resilience[1]))
-            elif self.sourceshift:
-                logging.info('Resilience for source shift is {}'.format(self.resilience[1]))
-            elif self.own:
-                logging.info('Resilience for own approach is {}'.format(self.resilience[1]))
-            else:
-                logging.info('Resilience for MORE is {}'.format(self.resilience[1]))
-
     def calc_tx_credit(self, david=False):
         """Calculate the amount of tx credit the receiver gets."""
         if david:
@@ -225,22 +200,45 @@ class Simulator:
                 pass
         self.z[nodename] = max(z)
 
-    def checkconnection(self):
+    def checkconnection(self, graph=None):
         """Check for given list of potential failures if the graph is still connected."""
         lostlist = []
-        for fail in self.interresting:
+        if graph is None:
+            graph = self.graph
+            interesting = self.interesting
+        else:
+            interesting = list(graph.edges())
+            interesting.extend(list(graph.nodes()))
+            interesting.remove('S')
+            interesting.remove('D')
+        for fail in interesting:
             if len(fail) == 1:
-                edgelist = [(fail, neighbor, self.graph.edges[fail, neighbor]['weight'])
-                            for neighbor in self.graph.neighbors(fail)]
+                edgelist = [(fail, neighbor, graph.edges[fail, neighbor]['weight'])
+                            for neighbor in graph.neighbors(fail)]
             else:
-                edgelist = [(fail[0], fail[1], self.graph.edges[fail[0], fail[1]]['weight'])]
-            self.graph.remove_edges_from(edgelist)
+                edgelist = [(fail[0], fail[1], graph.edges[fail[0], fail[1]]['weight'])]
+            graph.remove_edges_from(edgelist)
             try:
-                nx.shortest_path(self.graph, source='S', target='D')
+                nx.shortest_path(graph, source='S', target='D')
             except nx.exception.NetworkXNoPath:
                 lostlist.append(fail)
-            self.graph.add_weighted_edges_from(edgelist)
-        self.interresting = [fail for fail in self.interresting if fail not in lostlist]
+            graph.add_weighted_edges_from(edgelist)
+        if graph == self.graph:
+            self.interesting = [fail for fail in self.interesting if fail not in lostlist]
+            self.resilience[0] = (1 - self.edgefailprob) ** len(lostlist)
+            logging.info('Resilience for graph is {}'.format(self.resilience[0]))
+        else:
+            self.resilience[1] = (1 - self.edgefailprob) ** len(lostlist)
+            if self.david:
+                logging.info('Resilience for MOREresilience is {}'.format(self.resilience[1]))
+            elif self.sourceshift and self.own:
+                logging.info('Resilience for MORELESS is {}'.format(self.resilience[1]))
+            elif self.sourceshift:
+                logging.info('Resilience for source shift is {}'.format(self.resilience[1]))
+            elif self.own:
+                logging.info('Resilience for own approach is {}'.format(self.resilience[1]))
+            else:
+                logging.info('Resilience for MORE is {}'.format(self.resilience[1]))
 
     def checkduration(self):
         """Calculate duration since batch was started. To know there is no connection SD."""
@@ -327,6 +325,15 @@ class Simulator:
         for node in self.nodes:
             self.ranklist[str(node)] = []
 
+    def createusedgraph(self):
+        """Calculate resilience of network based on used edges with no failure."""
+        intedges = [element for element in self.interesting if len(element) == 2]
+        edgelist = [(element[0], element[1], self.graph.edges[element[0], element[1]]['weight'])
+                    for element in intedges]
+        resg = nx.Graph()
+        resg.add_weighted_edges_from(edgelist)
+        return resg
+
     def drawtrash(self, kind=None):
         """Draw linear dependent packets over time and nodes. Do not use! Will move to plotter, at some time."""
         maxval, sumval = [], []
@@ -375,25 +382,25 @@ class Simulator:
     def failall(self):
         """Kill one of all."""
         if self.prevfail is None:
-            if len(self.interresting[0]) == 1:
+            if len(self.interesting[0]) == 1:
                 for node in self.nodes:
-                    if str(node) == self.interresting[0]:
+                    if str(node) == self.interesting[0]:
                         self.failnode(self.nodes.index(node))
                         break
-            elif len(self.interresting[0]) == 2:
+            elif len(self.interesting[0]) == 2:
                 try:
-                    self.failedge(list(self.graph.edges).index((self.interresting[0][0], self.interresting[0][1])))
+                    self.failedge(list(self.graph.edges).index((self.interesting[0][0], self.interesting[0][1])))
                 except ValueError:
-                    self.failedge(list(self.graph.edges).index((self.interresting[0][1], self.interresting[0][0])))
+                    self.failedge(list(self.graph.edges).index((self.interesting[0][1], self.interesting[0][0])))
             else:
-                logging.error('Something crazy in interesting list: {}'.format(self.interresting[0]))
+                logging.error('Something crazy in interesting list: {}'.format(self.interesting[0]))
         elif isinstance(self.prevfail, tuple):
             try:
-                newidx = self.interresting.index(self.prevfail[0][0] + self.prevfail[0][1]) + 1
+                newidx = self.interesting.index(self.prevfail[0][0] + self.prevfail[0][1]) + 1
             except ValueError:
-                newidx = self.interresting.index(self.prevfail[0][1] + self.prevfail[0][0]) + 1
-            if len(self.interresting) > newidx:
-                newfail = self.interresting[newidx]
+                newidx = self.interesting.index(self.prevfail[0][1] + self.prevfail[0][0]) + 1
+            if len(self.interesting) > newidx:
+                newfail = self.interesting[newidx]
                 try:
                     self.failedge(list(self.graph.edges).index((newfail[0], newfail[1])))
                 except ValueError:
@@ -401,7 +408,7 @@ class Simulator:
             else:
                 return False
         else:
-            newfail = self.interresting[self.interresting.index(str(self.nodes[self.prevfail])) + 1]
+            newfail = self.interesting[self.interesting.index(str(self.nodes[self.prevfail])) + 1]
             if isinstance(newfail, str) and len(newfail) > 1:
                 try:
                     self.failedge(list(self.graph.edges).index((newfail[0], newfail[1])))
@@ -455,16 +462,16 @@ class Simulator:
     def filterinterresting(self):
         """Get all edges and nodes, which do something if there is no failure.
         Just these should fail, except src/dst."""
-        self.interresting = []
+        self.interesting = []
         usededges = [element for element in self.path['None']
                      if element[1] + element[0] not in self.path['None'] or element[0] > element[1]]
         for node in self.nodes:
             if str(node) not in 'SD' and node.getsent():
-                self.interresting.append(str(node))
-        self.interresting.extend(usededges)
-        self.calcres()
+                self.interesting.append(str(node))
+        self.interesting.extend(usededges)
+        self.checkconnection(graph=self.createusedgraph())
         self.checkconnection()      # Fails who break the graph are also not interresting
-        logging.debug('Interresting failures are: {}'.format(self.interresting))
+        logging.debug('Interresting failures are: {}'.format(self.interesting))
 
     def geteotx(self):
         """Calculate EOTX for all nodes in network and return as dict."""

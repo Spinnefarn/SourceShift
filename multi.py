@@ -171,7 +171,9 @@ if __name__ == '__main__':
     args = parse_args()
     llevel = logging.INFO
     logging.basicConfig(
-        filename='main.log', level=llevel, format='%(asctime)s %(processName)s\t %(levelname)s\t %(message)s',
+        filename='{}/main.log'.format(args.folder),
+        level=llevel,
+        format='%(asctime)s %(processName)s\t %(levelname)s\t %(message)s',
         filemode='w')
     now = datetime.datetime.now()
     # date = str(now.year) + str(now.month) + str(now.day)
