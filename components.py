@@ -63,8 +63,7 @@ def makenice(trash, maxts):
             intdict[int(ts)] = 0
         else:
             intdict[int(ts)] = int(trashdict[ts])
-    values = [intdict[key] for key in sorted(intdict.keys())]
-    return sorted(intdict.keys()), values
+    return {key: intdict[key] for key in sorted(intdict.keys())}
 
 
 class Node:

@@ -643,10 +643,10 @@ class Simulator:
             for node in self.nodes:
                 if str(node) != 'S':
                     if kind == 'real':
-                        trash, amount = node.getrealtrash(self.timestamp)
+                        trash = node.getrealtrash(self.timestamp)
                     else:
-                        trash, amount = node.gettrash(self.timestamp)
-                    trashdict[str(node)] = (trash, amount)
+                        trash = node.gettrash(self.timestamp)
+                    trashdict[str(node)] = trash
             with open('{}/{}trash.json'.format(self.folder, kind), 'w') as file:
                 json.dump(trashdict, file)
         with open('{}/failhist.json'.format(self.folder), 'w') as file:

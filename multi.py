@@ -154,6 +154,7 @@ def setmode(config, number):
 
 def plotall(mfolder, counter, liste):
     """Create a process to do the plots."""
+    """
     plotter.plotairtime('{0}/graph{1}'.format(mfolder, counter), liste)
     plotter.plotfailhist('{0}/graph{1}'.format(mfolder, counter), liste)
     plotter.plotgain('{0}/graph{1}'.format(mfolder, counter), liste)
@@ -165,20 +166,21 @@ def plotall(mfolder, counter, liste):
     plotter.plotperhop(mfolder, kind='mcut')
     plotter.plotgraph(['{0}/graph{1}/test'.format(mfolder, counter)])  # Dont plot all networks, just twice per protocol
     plotter.plotgraph(['{0}/graph{1}/{2}'.format(mfolder, counter, folder) for folder in liste[:10]])
-
+"""
 
 if __name__ == '__main__':
     args = parse_args()
     llevel = logging.INFO
     logging.basicConfig(
-        filename='{}/main.log'.format(args.folder),
+        filename='main.log',
         level=llevel,
         format='%(asctime)s %(processName)s\t %(levelname)s\t %(message)s',
         filemode='w')
     now = datetime.datetime.now()
-    # date = str(now.year) + str(now.month) + str(now.day)
-    date = '../expdav'
-    plot = None
+    date = str(now.year) + str(now.month) + str(now.day)
+    date = '../exp'
+    plot, plotconf = None, None
+    processes = []
     for i in range(1):
         logging.info('Created new graph at graph{}'.format(i))
         confdict = {'json': args.json, 'randconf': args.amount, 'coding': args.coding, 'fieldsize': args.fieldsize,
@@ -199,8 +201,7 @@ if __name__ == '__main__':
                     'failall': True, 'folder': args.folder, 'maxduration': args.maxduration,
                     'random': randomnumber, 'sourceshift': args.sourceshift}
         logging.info('Randomseed = ' + str(randomnumber))
-        folderlist = ['test{}'.format(i) for i in range(60)]
-        processes = []
+        folderlist = ['test{}'.format(i) for i in range(8)]     # Should be much bigger than number of available cores
         try:
             for element in folderlist:
                 cleanfolder('{}/graph{}/{}'.format(date, i, element))
@@ -208,7 +209,8 @@ if __name__ == '__main__':
                 confdict['json'] = 'demograph.json'
                 confdict['folder'] = '{}/graph{}/{}'.format(date, i, element)
                 confdict = setmode(confdict, element[-1])
-                confdict['maxduration'] = 100 * failhist['None'][0]
+                # confdict['maxduration'] = 200 * failhist['None'][0]
+                confdict['maxduration'] = 5000
                 while True:
                     if cpu_count() > len(active_children()):
                         launchsubp(confdict)
@@ -216,13 +218,19 @@ if __name__ == '__main__':
                     else:
                         time.sleep(1)
         except KeyboardInterrupt:
-            pass
-        for process in processes:
-            process.join()
+            print('Got KeyboardInterrupt!')
+            break
         if plot is not None and plot.is_alive():
             plot.join()
-        plot = Process(target=plotall, args=(date, i, folderlist))
-        plot.start()
+        if plotconf is not None:
+            plot = Process(target=plotall, args=plotconf)   # Start next graph bevore plotting old one
+            plot.start()                                    # No need for last process to finish
+        plotconf = date, i, folderlist
     if plot is not None and plot.is_alive():
+        plot.join()
+    logging.info('Waiting for last plots.')
+    if plotconf is not None:
+        plot = Process(target=plotall, args=plotconf)
+        plot.start()
         plot.join()
     logging.info('Everything done')
