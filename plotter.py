@@ -545,17 +545,26 @@ def parsetrash(mainfolder, folders, mode='real'):
                 incdicts['MORE'][folder] = trash
         except KeyError:
             logging.warning('Uncomplete config in {}'.format(folder))
-    nodes = set()
     plotlist = {}
+    nodes = {}
     for protocol in incdicts.keys():
-        if protocol not in plotlist.keys():
-            plotlist[protocol] = []
+        plotlist[protocol] = {}
+        nodes[protocol] = set()
         for folder in incdicts[protocol].keys():
-            nodes.update(incdicts[protocol][folder])
+            nodes[protocol].update(incdicts[protocol][folder])
             for node in incdicts[protocol][folder].keys():
-                plotlist[protocol].extend(incdicts[protocol][folder][node].values())
-
-    return plotlist
+                for timestamp in incdicts[protocol][folder][node].keys():
+                    if int(timestamp) not in plotlist[protocol].keys():
+                        plotlist[protocol][int(timestamp)] = incdicts[protocol][folder][node][timestamp]
+                    else:
+                        plotlist[protocol][int(timestamp)] += incdicts[protocol][folder][node][timestamp]
+    N = 10
+    retlist = {}
+    for protocol in plotlist:
+        retlist[protocol] = {}
+        values = np.convolve(plotlist[protocol].values(), np.ones((N,))/N, mode='valid')
+        retlist[protocol] = {key: value for key, value in enumerate(values)}
+    return retlist
 
 
 def readairtime(folder):
@@ -970,18 +979,21 @@ def plottrash(mainfolder=None):
         folders.extend(['{}/{}'.format(subfolder, subsubfolder)
                         for subsubfolder in os.listdir('{}/{}'.format(mainfolder, subfolder))
                         if os.path.isdir('{}/{}/{}'.format(mainfolder, subfolder, subsubfolder))])
-    try:
-        plotlist = parsetrash(mainfolder, folders)
-    except AttributeError:
-        logging.warning('Old log format in {}'.format(mainfolder))
-        return
     for mode in ['real', 'overhearing']:
+        try:
+            plotlist = parsetrash(mainfolder, folders, mode=mode)
+        except AttributeError:
+            logging.warning('Old log format in {}'.format(mainfolder))
+            return
         p.figure(figsize=(6.18, 6.18))
         for protocol in sorted(plotlist.keys()):
-            p.plot(sorted(plotlist[protocol]), np.linspace(0, 1, len(plotlist[protocol])), label=protocol, alpha=0.8)
-        p.title('Incomming trash per protocol.')
-        p.ylabel('Fraction of Trash')
+            p.plot(list(plotlist[protocol].keys()), list(plotlist[protocol].values()), label=protocol, alpha=0.5)
+        p.title('Incomming trash per protocol')
+        p.ylabel('Total amount of trash per time slots')
         p.xlabel('Time slot')
+        p.xlim(left=0)
+        p.ylim(bottom=0)
+        p.yscale('log')
         p.grid(True)
         p.legend(loc='best')
         p.tight_layout()
@@ -993,7 +1005,7 @@ if __name__ == '__main__':
     logging.basicConfig(filename='plotlog.log', level=logging.DEBUG, filemode='w')
     now = datetime.datetime.now()
     # date = str(int(str(now.year) + str(now.month) + str(now.day)))
-    date = '../expdav'
+    date = '../2018126'
     folderlist = []
     for i in range(1):
         folderlst = []

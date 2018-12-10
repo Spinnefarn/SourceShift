@@ -114,7 +114,7 @@ class Node:
         """Act like source. Will be triggered if all neighbors are complete."""
         if not self.complete:
             logging.error('All neighbors are complete but not this one? '.format(self.name))
-        self.creditcounter = float('inf')
+        self.creditcounter += 1
 
     def fail(self):
         """Set nodes state to fail."""

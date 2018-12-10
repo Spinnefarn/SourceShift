@@ -154,7 +154,6 @@ def setmode(config, number):
 
 def plotall(mfolder, counter, liste):
     """Create a process to do the plots."""
-    """
     plotter.plotairtime('{0}/graph{1}'.format(mfolder, counter), liste)
     plotter.plotfailhist('{0}/graph{1}'.format(mfolder, counter), liste)
     plotter.plotgain('{0}/graph{1}'.format(mfolder, counter), liste)
@@ -164,9 +163,10 @@ def plotall(mfolder, counter, liste):
     plotter.plotlatcdf(mfolder)
     plotter.plotperhop(mfolder)
     plotter.plotperhop(mfolder, kind='mcut')
+    plotter.plottrash(mfolder)
     plotter.plotgraph(['{0}/graph{1}/test'.format(mfolder, counter)])  # Dont plot all networks, just twice per protocol
     plotter.plotgraph(['{0}/graph{1}/{2}'.format(mfolder, counter, folder) for folder in liste[:10]])
-"""
+
 
 if __name__ == '__main__':
     args = parse_args()
