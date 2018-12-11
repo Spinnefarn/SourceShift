@@ -227,7 +227,8 @@ class Node:
         while len(self.incbuffer):
             batch, coding, preveotx, prevdeotx, special = self.incbuffer.pop()
             if self.name == 'S':  # Cant get new information if you're source
-                break
+                self.realtrash.append(timestamp)        # Source never gets usefull packet
+                continue
             elif batch < self.batch:
                 continue
             elif batch > self.batch or not len(self.buffer):  # Delete it if you're working on deprecated batch

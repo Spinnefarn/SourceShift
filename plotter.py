@@ -53,13 +53,13 @@ def getairtime(mainfolder=None, folders=None):
                 incdicts['MORERESS'] = {}
             incdicts['MORERESS'][folder] = airtime
         elif config['own']:
-            if 'send back' not in incdicts.keys():
-                incdicts['send back'] = {}
-            incdicts['send back'][folder] = airtime
+            if 'Send Aback' not in incdicts.keys():
+                incdicts['Send Aback'] = {}
+            incdicts['Send Aback'][folder] = airtime
         elif config['sourceshift']:
-            if 'source shift' not in incdicts.keys():
-                incdicts['source shift'] = {}
-            incdicts['source shift'][folder] = airtime
+            if 'Source Shift' not in incdicts.keys():
+                incdicts['Source Shift'] = {}
+            incdicts['Source Shift'][folder] = airtime
         elif config['david']:
             if 'MOREresilience' not in incdicts.keys():
                 incdicts['MOREresilience'] = {}
@@ -119,17 +119,17 @@ def getairtimemode(mainfolder=None, folders=None, mode='perhop'):
                 incdicts['MORERESS'][ident] = {}
             incdicts['MORERESS'][ident][folder] = airtime
         elif config['own']:
-            if 'send back' not in incdicts.keys():
-                incdicts['send back'] = {}
-            if ident not in incdicts['send back'].keys():
-                incdicts['send back'][ident] = {}
-            incdicts['send back'][ident][folder] = airtime
+            if 'Send Aback' not in incdicts.keys():
+                incdicts['Send Aback'] = {}
+            if ident not in incdicts['Send Aback'].keys():
+                incdicts['Send Aback'][ident] = {}
+            incdicts['Send Aback'][ident][folder] = airtime
         elif config['sourceshift']:
-            if 'source shift' not in incdicts.keys():
-                incdicts['source shift'] = {}
-            if ident not in incdicts['source shift'].keys():
-                incdicts['source shift'][ident] = {}
-            incdicts['source shift'][ident][folder] = airtime
+            if 'Source Shift' not in incdicts.keys():
+                incdicts['Source Shift'] = {}
+            if ident not in incdicts['Source Shift'].keys():
+                incdicts['Source Shift'][ident] = {}
+            incdicts['Source Shift'][ident][folder] = airtime
         elif config['david']:
             if 'MOREresilience' not in incdicts.keys():
                 incdicts['MOREresilience'] = {}
@@ -187,13 +187,13 @@ def getfailhist(mainfolder=None, folders=None):
                 incdicts['MORERESS'] = {}
             incdicts['MORERESS'][folder] = {key: value[0] for key, value in failhist.items()}
         elif config['own']:
-            if 'send back' not in incdicts.keys():
-                incdicts['send back'] = {}
-            incdicts['send back'][folder] = {key: value[0] for key, value in failhist.items()}
+            if 'Send Aback' not in incdicts.keys():
+                incdicts['Send Aback'] = {}
+            incdicts['Send Aback'][folder] = {key: value[0] for key, value in failhist.items()}
         elif config['sourceshift']:
-            if 'source shift' not in incdicts.keys():
-                incdicts['source shift'] = {}
-            incdicts['source shift'][folder] = {key: value[0] for key, value in failhist.items()}
+            if 'Source Shift' not in incdicts.keys():
+                incdicts['Source Shift'] = {}
+            incdicts['Source Shift'][folder] = {key: value[0] for key, value in failhist.items()}
         elif config['david']:
             if 'MOREresilience' not in incdicts.keys():
                 incdicts['MOREresilience'] = {}
@@ -253,17 +253,17 @@ def getfailhistmode(mainfolder=None, folders=None, mode='perhop'):
                 incdicts['MORERESS'][ident] = {}
             incdicts['MORERESS'][ident][folder] = {key: value[0] for key, value in failhist.items()}
         elif config['own']:
-            if 'send back' not in incdicts.keys():
-                incdicts['send back'] = {}
-            if ident not in incdicts['send back'].keys():
-                incdicts['send back'][ident] = {}
-            incdicts['send back'][ident][folder] = {key: value[0] for key, value in failhist.items()}
+            if 'Send Aback' not in incdicts.keys():
+                incdicts['Send Aback'] = {}
+            if ident not in incdicts['Send Aback'].keys():
+                incdicts['Send Aback'][ident] = {}
+            incdicts['Send Aback'][ident][folder] = {key: value[0] for key, value in failhist.items()}
         elif config['sourceshift']:
-            if 'source shift' not in incdicts.keys():
-                incdicts['source shift'] = {}
-            if ident not in incdicts['source shift'].keys():
-                incdicts['source shift'][ident] = {}
-            incdicts['source shift'][ident][folder] = {key: value[0] for key, value in failhist.items()}
+            if 'Source Shift' not in incdicts.keys():
+                incdicts['Source Shift'] = {}
+            if ident not in incdicts['Source Shift'].keys():
+                incdicts['Source Shift'][ident] = {}
+            incdicts['Source Shift'][ident][folder] = {key: value[0] for key, value in failhist.items()}
         elif config['david']:
             if 'MOREresilience' not in incdicts.keys():
                 incdicts['MOREresilience'] = {}
@@ -359,13 +359,13 @@ def parseaircdf(mainfolder, folders, mode='regular'):
                     incdicts['MORERESS'] = {}
                 incdicts['MORERESS'][folder] = airtime
             elif config['own']:
-                if 'send back' not in incdicts.keys():
-                    incdicts['send back'] = {}
-                incdicts['send back'][folder] = airtime
+                if 'Send Aback' not in incdicts.keys():
+                    incdicts['Send Aback'] = {}
+                incdicts['Send Aback'][folder] = airtime
             elif config['sourceshift']:
-                if 'source shift' not in incdicts.keys():
-                    incdicts['source shift'] = {}
-                incdicts['source shift'][folder] = airtime
+                if 'Source Shift' not in incdicts.keys():
+                    incdicts['Source Shift'] = {}
+                incdicts['Source Shift'][folder] = airtime
             elif config['david']:
                 if 'MOREresilience' not in incdicts.keys():
                     incdicts['MOREresilience'] = {}
@@ -440,13 +440,13 @@ def parsefailcdf(mainfolder, folders, mode='regular'):
                     incdicts['MORERESS'] = {}
                 incdicts['MORERESS'][folder] = {key: value[0] for key, value in failhist.items()}
             elif config['own']:
-                if 'send back' not in incdicts.keys():
-                    incdicts['send back'] = {}
-                incdicts['send back'][folder] = {key: value[0] for key, value in failhist.items()}
+                if 'Send Aback' not in incdicts.keys():
+                    incdicts['Send Aback'] = {}
+                incdicts['Send Aback'][folder] = {key: value[0] for key, value in failhist.items()}
             elif config['sourceshift']:
-                if 'source shift' not in incdicts.keys():
-                    incdicts['source shift'] = {}
-                incdicts['source shift'][folder] = {key: value[0] for key, value in failhist.items()}
+                if 'Source Shift' not in incdicts.keys():
+                    incdicts['Source Shift'] = {}
+                incdicts['Source Shift'][folder] = {key: value[0] for key, value in failhist.items()}
             elif config['david']:
                 if 'MOREresilience' not in incdicts.keys():
                     incdicts['MOREresilience'] = {}
@@ -528,13 +528,13 @@ def parsetrash(mainfolder, folders, mode='real'):
                     incdicts['MORERESS'] = {}
                 incdicts['MORERESS'][folder] = trash
             elif config['own']:
-                if 'send back' not in incdicts.keys():
-                    incdicts['send back'] = {}
-                incdicts['send back'][folder] = trash
+                if 'Send Aback' not in incdicts.keys():
+                    incdicts['Send Aback'] = {}
+                incdicts['Send Aback'][folder] = trash
             elif config['sourceshift']:
-                if 'source shift' not in incdicts.keys():
-                    incdicts['source shift'] = {}
-                incdicts['source shift'][folder] = trash
+                if 'Source Shift' not in incdicts.keys():
+                    incdicts['Source Shift'] = {}
+                incdicts['Source Shift'][folder] = trash
             elif config['david']:
                 if 'MOREresilience' not in incdicts.keys():
                     incdicts['MOREresilience'] = {}
@@ -555,16 +555,12 @@ def parsetrash(mainfolder, folders, mode='real'):
             for node in incdicts[protocol][folder].keys():
                 for timestamp in incdicts[protocol][folder][node].keys():
                     if int(timestamp) not in plotlist[protocol].keys():
-                        plotlist[protocol][int(timestamp)] = incdicts[protocol][folder][node][timestamp]
+                        plotlist[protocol][int(timestamp)] = \
+                            incdicts[protocol][folder][node][timestamp] / len(incdicts[protocol])
                     else:
-                        plotlist[protocol][int(timestamp)] += incdicts[protocol][folder][node][timestamp]
-    N = 10
-    retlist = {}
-    for protocol in plotlist:
-        retlist[protocol] = {}
-        values = np.convolve(plotlist[protocol].values(), np.ones((N,))/N, mode='valid')
-        retlist[protocol] = {key: value for key, value in enumerate(values)}
-    return retlist
+                        plotlist[protocol][int(timestamp)] += \
+                            incdicts[protocol][folder][node][timestamp] / len(incdicts[protocol])
+    return plotlist
 
 
 def readairtime(folder):
@@ -987,17 +983,18 @@ def plottrash(mainfolder=None):
             return
         p.figure(figsize=(6.18, 6.18))
         for protocol in sorted(plotlist.keys()):
-            p.plot(list(plotlist[protocol].keys()), list(plotlist[protocol].values()), label=protocol, alpha=0.5)
+            p.plot(list(plotlist[protocol].keys()), list(plotlist[protocol].values()), label=protocol, alpha=0.8)
         p.title('Incomming trash per protocol')
         p.ylabel('Total amount of trash per time slots')
         p.xlabel('Time slot')
-        p.xlim(left=0)
-        p.ylim(bottom=0)
+        # p.xlim(left=0)
+        # p.ylim(bottom=0)
         p.yscale('log')
+        p.xscale('log')
         p.grid(True)
         p.legend(loc='best')
         p.tight_layout()
-        p.savefig('{}/{}trashcdf.pdf'.format(mainfolder, mode))
+        p.savefig('{}/{}trash.pdf'.format(mainfolder, mode))
         p.close()
 
 
@@ -1005,9 +1002,9 @@ if __name__ == '__main__':
     logging.basicConfig(filename='plotlog.log', level=logging.DEBUG, filemode='w')
     now = datetime.datetime.now()
     # date = str(int(str(now.year) + str(now.month) + str(now.day)))
-    date = '../2018126'
+    date = '../20181210'
     folderlist = []
-    for i in range(1):
+    for i in range(3):
         folderlst = []
         # folderlist.append('{}/graph{}/test'.format(date, i))
         folderlist.extend(['{}/graph{}/test{}'.format(date, i, j) for j in range(100)])

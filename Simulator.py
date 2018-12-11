@@ -200,6 +200,7 @@ class Simulator:
                 pass
         self.z[nodename] = max(z)
 
+    # noinspection PyTypeChecker
     def checkconnection(self, graph=None):
         """Check for given list of potential failures if the graph is still connected."""
         lostlist = []
@@ -248,18 +249,11 @@ class Simulator:
             maxval = self.maxduration
         else:
             maxval = 100 * self.batchhist[0]
-        if len(self.batchhist) == 1:
-            if self.timestamp - self.batchhist[0] >= maxval:
-                logging.info('Stopped batch after {} timesteps'.format(self.timestamp - self.batchhist[0]))
-                return False
-            else:
-                return True
+        if self.timestamp >= maxval:
+            logging.info('Stopped batch after {} timesteps'.format(self.timestamp - self.batchhist[0]))
+            return False
         else:
-            if self.timestamp - self.batchhist[-1] >= maxval:
-                logging.info('Stopped batch after {} timesteps'.format(self.timestamp - self.batchhist[-1]))
-                return False
-            else:
-                return True
+            return True
 
     def checkspecial(self, node, neighbor):
         """Return True if node should be able to send over special metric."""
@@ -549,10 +543,13 @@ class Simulator:
             prevfail = self.prevfail[0]
         else:
             self.filterinterresting()
-        if len(self.batchhist):
-            self.failhist[prevfail] = (self.timestamp - self.batchhist[-1], self.batch - 1)
+        if isinstance(prevfail, tuple):
+            self.failhist[prevfail[0] + prevfail[1]] = (self.timestamp, self.batch - 1)
         else:
-            self.failhist['None'] = (self.timestamp, self.batch - 1)
+            if prevfail is None:
+                self.failhist['None'] = (self.timestamp, self.batch - 1)
+            else:
+                self.failhist[prevfail] = (self.timestamp, self.batch - 1)
         for node in self.nodes:
             if str(node) in 'SD':
                 node.newbatch()
@@ -568,24 +565,26 @@ class Simulator:
         self.airtime[self.getidentifier()] = {}
         self.path[self.getidentifier()] = {}
         self.batchhist.append(self.timestamp)
+        self.timestamp = 0
 
     def sendall(self):
         """All nodes send at same time."""
         for node in self.nodes:
             if str(node) != 'D' and node.getcredit() > 0. and not node.getquiet() and node.gethealth():
-                self.broadcast(node)
-                node.reducecredit()
-                ident = self.getidentifier()
-                if str(node) in self.airtime[ident].keys():
-                    self.airtime[ident][str(node)].append(self.timestamp)
-                else:
-                    self.airtime[ident][str(node)] = [self.timestamp]
+                if node.getbatch() == self.batch:
+                    self.broadcast(node)
+                    node.reducecredit()
+                    ident = self.getidentifier()
+                    if str(node) in self.airtime[ident].keys():
+                        self.airtime[ident][str(node)].append(self.timestamp)
+                    else:
+                        self.airtime[ident][str(node)] = [self.timestamp]
 
     def sendsel(self):
         """Just the selected amount of nodes send at one timeslot."""
         goodnodes = [  # goodnodes are nodes which are allowed to send
             node for node in self.nodes if node.getcredit() > 0. and str(node) != 'D' and not node.getquiet() and
-            node.gethealth()]
+            node.gethealth() and node.getbatch() == self.batch]
         maxsend = self.sendam if len(goodnodes) > self.sendam else len(goodnodes)
         for _ in range(maxsend):
             k = random.randint(0, len(goodnodes) - 1)
@@ -650,13 +649,7 @@ class Simulator:
             with open('{}/{}trash.json'.format(self.folder, kind), 'w') as file:
                 json.dump(trashdict, file)
         with open('{}/failhist.json'.format(self.folder), 'w') as file:
-            failhist = {}
-            for fail, ts in self.failhist.items():
-                if isinstance(fail, tuple):
-                    failhist[fail[0] + fail[1]] = ts
-                else:
-                    failhist[fail] = ts
-            json.dump(failhist, file)
+            json.dump(self.failhist, file)
         if isinstance(self.prevfail, tuple):        # Repair graph before writing it down
             self.graph.edges[self.prevfail[0]]['weight'] = self.prevfail[1]
         elif isinstance(self.prevfail, int):

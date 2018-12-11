@@ -164,8 +164,8 @@ def plotall(mfolder, counter, liste):
     plotter.plotperhop(mfolder)
     plotter.plotperhop(mfolder, kind='mcut')
     plotter.plottrash(mfolder)
-    plotter.plotgraph(['{0}/graph{1}/test'.format(mfolder, counter)])  # Dont plot all networks, just twice per protocol
-    plotter.plotgraph(['{0}/graph{1}/{2}'.format(mfolder, counter, folder) for folder in liste[:10]])
+    plotter.plotgraph(['{0}/graph{1}/test'.format(mfolder, counter)])  # Just plot each graph once
+    # plotter.plotgraph(['{0}/graph{1}/{2}'.format(mfolder, counter, folder) for folder in liste[:10]])
 
 
 if __name__ == '__main__':
@@ -178,7 +178,7 @@ if __name__ == '__main__':
         filemode='w')
     now = datetime.datetime.now()
     date = str(now.year) + str(now.month) + str(now.day)
-    date = '../exp'
+    # date = '../exp'
     plot, plotconf = None, None
     processes = []
     for i in range(1):
