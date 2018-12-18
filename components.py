@@ -3,53 +3,8 @@
 """Contains bacic network objects like Packets etc.."""
 import numpy as np
 import logging
-import fifi
-
-
-def determinant(matrix, size, field):
-    """Solve determinant with laplace."""
-    c = []
-    d = 0
-    if size == 0:
-        for i in range(len(matrix)):
-            d = (field.add(d, matrix[i]))
-        return d
-    elif len(matrix) == 1:
-        return matrix[0]
-    elif len(matrix) == 4:
-        c = field.subtract(field.multiply(int(matrix[0]), int(matrix[3])),
-                           field.multiply(int(matrix[1]), int(matrix[2])))
-        return c
-    else:
-        for j in range(size):
-            new_matrix = []
-            for i in range(size*size):
-                if i % size != j and i >= size:
-                    new_matrix.append(matrix[i])
-
-            c.append(field.multiply(int(determinant(new_matrix, size - 1, field)), int(matrix[j])))
-        d = determinant(c, 0, field)
-        return d
-
-
-def calcrank(matrix, field):
-    """Another try."""
-    if not len(matrix):
-        return 0
-    elif len(matrix) == 1:
-        return 1
-    for i in range(len(matrix), 0, -1):
-        for j in range(2 ** len(matrix[0])):
-            binj = [int(x) for x in bin(j)[2:]]
-            if sum(binj) == i:
-                linematrix = []
-                binj = [0] * (len(matrix[0]) - len(binj)) + binj
-                for linenumber in range(i):
-                    for idx, binv in enumerate(binj):
-                        if binv:
-                            linematrix.append(matrix[linenumber][idx])
-                if determinant(linematrix, i, field):
-                    return i
+import kodo
+import os
 
 
 def makenice(trash, maxts):
@@ -73,8 +28,18 @@ class Node:
             np.random.seed(1)
         else:
             np.random.seed(random)
+        symbol_size = 160
+        self.coder = None
+        if name == 'S':
+            self.factory = kodo.RLNCEncoderFactory(kodo.field.binary, coding, symbol_size)
+            self.coder = self.factory.build()
+            self.data = bytearray(os.urandom(self.coder.block_size()))
+            self.coder.set_const_symbols(self.data)
+        else:
+            self.factory = kodo.RLNCDecoderFactory(kodo.field.binary, coding, symbol_size)
+            self.coder = self.factory.build()
+            self.data = bytearray(self.coder.block_size())
         self.name = name
-        self.buffer = np.array([], dtype=int)
         self.fieldsize = 2 ** fieldsize
         self.incbuffer = []
         self.coding = coding
@@ -91,16 +56,6 @@ class Node:
         self.history = []
         self.sendhistory = []
         self.rank = 0 if self.name != 'S' else coding
-        if fieldsize == 1:
-            self.field = fifi.simple_online_binary()
-        elif fieldsize == 4:
-            self.field = fifi.simple_online_binary4()
-        elif fieldsize == 8:
-            self.field = fifi.simple_online_binary8()
-        elif fieldsize == 16:
-            self.field = fifi.simple_online_binary16()
-        else:
-            raise ValueError('Unsupported field size!')
 
     def __str__(self):
         return str(self.name)
@@ -128,36 +83,8 @@ class Node:
         """Return a (re)coded packet."""
         if self.name == 'D':  # Make sure destination will never send a packet
             return None
-        elif self.name == 'S':
-            coding = [0]
-            while sum(coding) == 0:  # Use random coding instead of recoding if rank is full
-                coding = np.random.randint(self.fieldsize, size=self.coding)
-            self.sendhistory.append(coding)
-            return coding
-        elif self.creditcounter > 0:  # Check tx credit
-            if self.isdone():
-                coding = [0]
-                while sum(coding) == 0:  # Use random coding instead of recoding if rank is full
-                    coding = np.random.randint(self.fieldsize, size=self.coding, dtype=int)
-                return coding
-            recoded = [0]
-            while sum(recoded) == 0:
-                modbuffer = np.array([], dtype=int)
-                for line in self.buffer:
-                    randomnumber = int(np.random.randint(self.fieldsize))
-                    newline = [self.field.multiply(randomnumber, int(x)) for x in line]
-                    if len(modbuffer):
-                        modbuffer = np.vstack([modbuffer, newline])
-                    else:
-                        modbuffer = np.array([newline], dtype=int)
-                recoded = []
-                for i in range(len(self.buffer[0])):
-                    summe = 0
-                    for j in modbuffer[:, i]:
-                        summe = self.field.add(int(summe), int(j))
-                    recoded.append(summe)  # Recode to get new packet
-            self.sendhistory.append(recoded)
-            return np.array(recoded)
+        elif self.name == 'S' or self.creditcounter > 0:
+            return self.coder.write_payload()
         else:
             return None
 
@@ -217,41 +144,42 @@ class Node:
     def newbatch(self):
         """Make destination awaiting new batch."""
         self.batch += 1
-        self.buffer = np.array([], dtype=int)
         self.complete = self.name == 'S'
         self.rank = self.coding if self.name == 'S' else 0
+        if self.name != 'S':
+            self.coder = self.factory.build()
+            self.data = bytearray(self.coder.block_size())
+            self.coder.set_mutable_symbols(self.data)
         self.quiet = False
 
     def rcvpacket(self, timestamp):
-        """Add received Packet to buffer. Do this at end of timeslot."""
+        """Add received Packet to buffer. Do this at end of time slot."""
         while len(self.incbuffer):
             batch, coding, preveotx, prevdeotx, special = self.incbuffer.pop()
             if self.name == 'S':  # Cant get new information if you're source
-                self.realtrash.append(timestamp)        # Source never gets usefull packet
+                self.realtrash.append(timestamp)        # Source never gets useful packet
                 continue
             elif batch < self.batch:
                 continue
-            elif batch > self.batch or not len(self.buffer):  # Delete it if you're working on deprecated batch
-                self.buffer = np.array([coding], dtype=int)
+            elif batch > self.batch or not self.coder.rank():  # Delete it if you're working on deprecated batch
                 self.batch = batch
-                self.rank = 1 if self.name != 'S' else self.coding
-                self.complete = self.rank == self.coding
+                self.coder = self.factory.build()
+                self.data = bytearray(self.coder.block_size())
+                self.coder.set_mutable_symbols(self.data)
+                self.coder.read_payload(coding)
+                self.rank = self.coder.rank()
+                self.complete = self.coder.is_complete()
                 self.creditcounter = 0.
                 if self.quiet:
                     self.quiet = False
                 if special and self.credit == 0:
                     self.creditcounter += 1
             else:  # Just add new information if its new
-                if self.complete:        # Packet can just be linear dependent if rank is full
-                    newrank = self.rank
-                    if special and self.credit == 0:
-                        self.creditcounter += 1
-                else:
-                    newrank = calcrank(np.vstack([self.buffer, coding]), self.field)
+                self.coder.read_payload(coding)
+                newrank = self.coder.rank()
                 if self.rank < newrank:
-                    self.buffer = np.vstack([self.buffer, coding])
                     self.rank = newrank
-                    self.complete = self.coding == newrank
+                    self.complete = self.coder.is_complete()
                     if special and self.credit == 0:
                         self.creditcounter += 1
                 elif preveotx > self.eotx:

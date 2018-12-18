@@ -699,12 +699,13 @@ def plotlatcdf(mainfolder=None, folders=None):
             p.figure(figsize=(6.18, 4.2))
         for protocol in sorted(plotlist.keys()):
             p.plot(sorted(plotlist[protocol]), np.linspace(0, 1, len(plotlist[protocol])), label=protocol, alpha=0.8)
+        p.axvline(x=5000, linestyle='--', color='black')
         p.title('Required latency per protocol')
         p.ylabel('Fraction of Latency')
         p.xlabel('Latency in timeslots')
         # p.ylim([0.8, 1])
         # p.xlim(left=0)
-        p.xscale('log')
+        # p.xscale('log')
         p.xticks(rotation=90)
         p.grid(True)
         p.legend(loc='best')
@@ -731,11 +732,8 @@ def plotfailhist(mainfolder=None, folders=None):
     p.yscale('log')
     p.ylabel('Needed Latency in timeslots')
     p.xlabel('Failure')
-    # p.yscale('log')
     if config['maxduration']:
-        p.ylim([0, config['maxduration']])
-    else:
-        p.ylim(bottom=0)
+        p.ylim(top=config['maxduration'])
     p.xlim([-1, len(failures)])
     p.title('Needed timeslots over failures for different protocols')
     ind = [x + 0.5 for x in range(len(failures))]
@@ -842,8 +840,8 @@ def plotgraph(folders=None):
             configlist.append((edge['nodes'][0], edge['nodes'][1], edge['loss']))
         net = nx.Graph()
         net.add_weighted_edges_from(configlist)
-        for node in net.nodes:
-            net.nodes[node]['EOTX'] = eotx[node][0]
+        # for node in net.nodes:        # Do not plot EOTX as its confusing for audience
+            # net.nodes[node]['EOTX'] = eotx[node][0]
         prevfail = None
         for fail in failhist.keys():
             if fail != 'None':
@@ -1002,7 +1000,7 @@ if __name__ == '__main__':
     logging.basicConfig(filename='plotlog.log', level=logging.DEBUG, filemode='w')
     now = datetime.datetime.now()
     # date = str(int(str(now.year) + str(now.month) + str(now.day)))
-    date = '../20181210'
+    date = '20181212'
     folderlist = []
     for i in range(3):
         folderlst = []
@@ -1017,10 +1015,10 @@ if __name__ == '__main__':
         # plotgain(mfolder, folderlst)
         # plotfailhist(mfolder, folderlst)
     # plotaircdf(date)
-    # plotlatcdf(date)
+    plotlatcdf(date)
     # plotgaincdf(date)
     # plotperhop(date)
     # plotperhop(date, kind='mcut')
     # plotqq(['../expdav', '../expnodav'])
-    plottrash(date)
-    # plotgraph(folders=folderlist)
+    # plottrash(date)
+    plotgraph(folders=folderlist)

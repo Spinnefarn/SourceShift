@@ -14,11 +14,14 @@ import logging
 
 def readconf(jsonfile):
     """Read configuration file."""
-    if jsonfile is not None and os.path.exists(jsonfile):
-        with open(jsonfile) as file:
-            config = json.loads(file.read())
-        pos = {node: [config['nodes'][node]['x'], config['nodes'][node]['y']] for node in config['nodes']}
-        return config['links'], pos
+    if jsonfile is not None:
+        if os.path.exists(jsonfile):
+            with open(jsonfile) as file:
+                config = json.loads(file.read())
+            pos = {node: [config['nodes'][node]['x'], config['nodes'][node]['y']] for node in config['nodes']}
+            return config['links'], pos
+        else:
+            raise FileNotFoundError
 
 
 class Simulator:
@@ -262,7 +265,7 @@ class Simulator:
                 if invnei != str(node):     # Don't think your source is a different way
                     for invnode in self.nodes:
                         if str(invnode) == invnei:
-                            if node.getbatch() >= invnode.getbatch():
+                            if node.getbatch() >= invnode.getbatch() and not invnode.isdone():
                                 return True
                             break
         return False
@@ -519,7 +522,10 @@ class Simulator:
         self.mcut = nx.minimum_edge_cut(self.graph, s='S', t='D')
         self.dijkstra = nx.shortest_path(self.graph, source='S', target='D', weight='weight')
         if self.david:
-            self.calcdeotx()
+            try:
+                self.calcdeotx()
+            except ZeroDivisionError:
+                pass
 
     def getpath(self):
         """Get path of the packet which arrived successfully."""
