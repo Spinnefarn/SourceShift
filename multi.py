@@ -97,7 +97,7 @@ def runsim(config):
                     sendall=config['sendam'], own=config['own'], edgefail=config['failedge'],
                     nodefail=config['failnode'], allfail=config['failall'], randcof=config['randconf'],
                     folder=config['folder'], maxduration=config['maxduration'], randomseed=randomseed,
-                    sourceshift=config['sourceshift'], david=config['david'])
+                    sourceshift=config['sourceshift'], david=config['david'], hops=config['hops'])
     logging.info('Start simulator {}'.format(config['folder']))
     starttime = time.time()
     complete = False
@@ -154,16 +154,16 @@ def setmode(config, number):
 
 def plotall(mfolder, counter, liste):
     """Create a process to do the plots."""
-    plotter.plotairtime('{0}/graph{1}'.format(mfolder, counter), liste)
-    plotter.plotfailhist('{0}/graph{1}'.format(mfolder, counter), liste)
-    plotter.plotgain('{0}/graph{1}'.format(mfolder, counter), liste)
-    plotter.plotaircdf('{0}/graph{1}'.format(mfolder, counter), liste)
-    plotter.plotlatcdf('{0}/graph{1}'.format(mfolder, counter), liste)
+    # plotter.plotairtime('{0}/graph{1}'.format(mfolder, counter), liste)
+    # plotter.plotfailhist('{0}/graph{1}'.format(mfolder, counter), liste)
+    # plotter.plotgain('{0}/graph{1}'.format(mfolder, counter), liste)
+    # plotter.plotaircdf('{0}/graph{1}'.format(mfolder, counter), liste)
+    # plotter.plotlatcdf('{0}/graph{1}'.format(mfolder, counter), liste)
     plotter.plotaircdf(mfolder)
     plotter.plotlatcdf(mfolder)
-    plotter.plotperhop(mfolder)
-    plotter.plotperhop(mfolder, kind='mcut')
-    plotter.plottrash(mfolder)
+    # plotter.plotperhop(mfolder)
+    # plotter.plotperhop(mfolder, kind='mcut')
+    # plotter.plottrash(mfolder)
     plotter.plotgraph(['{0}/graph{1}/test'.format(mfolder, counter)])  # Just plot each graph once
     # plotter.plotgraph(['{0}/graph{1}/{2}'.format(mfolder, counter, folder) for folder in liste[:10]])
 
@@ -186,9 +186,11 @@ if __name__ == '__main__':
         confdict = {'json': args.json, 'randconf': args.amount, 'coding': args.coding, 'fieldsize': args.fieldsize,
                     'sendam': args.sendam, 'own': args.own, 'failedge': args.failedge, 'failnode': args.failnode,
                     'failall': False, 'folder': '{}/graph{}/test'.format(date, i), 'maxduration': args.maxduration,
-                    'random': args.random, 'sourceshift': args.sourceshift, 'david': 0.0}
+                    'random': args.random, 'sourceshift': args.sourceshift, 'david': 0.0, 'hops': (i + 1) % 16}
         cleanfolder(confdict['folder'])
-        runsim(confdict)
+        launchsubp(confdict)
+        while not os.path.exists(confdict['folder'] + '/graph.json'):
+            time.sleep(0.01)
         with open('{}/graph{}/test/failhist.json'.format(date, i)) as file:
             failhist = json.loads(file.read())
         if args.random is None:
@@ -209,8 +211,8 @@ if __name__ == '__main__':
                 # confdict['json'] = 'demograph.json'
                 confdict['folder'] = '{}/graph{}/{}'.format(date, i, element)
                 confdict = setmode(confdict, element[-1])
-                # confdict['maxduration'] = 200 * failhist['None'][0]
-                confdict['maxduration'] = 5000
+                confdict['maxduration'] = 200 * failhist['None'][0]
+                # confdict['maxduration'] = 5000
                 while True:
                     if cpu_count() > len(active_children()):
                         launchsubp(confdict)
@@ -220,6 +222,14 @@ if __name__ == '__main__':
         except KeyboardInterrupt:
             print('Got KeyboardInterrupt!')
             break
+        dellist = []
+        for i in range(len(processes)):
+            if not processes[i].is_alive():
+                processes[i].close()
+                dellist.append(i)
+        while dellist:
+            number = dellist.pop()
+            del processes[number]
         if plot is not None and plot.is_alive():
             plot.join()
         if plotconf is not None:

@@ -28,7 +28,7 @@ class Simulator:
     """Round based simulator to simulate traffic in meshed network."""
     def __init__(self, jsonfile=None, coding=None, fieldsize=2, sendall=0, own=True, edgefail=None, nodefail=None,
                  allfail=False, randcof=(10, 0.5), folder='.', maxduration=0, randomseed=None, sourceshift=False,
-                 david=False, edgefailprob=0.1):
+                 david=False, edgefailprob=0.1, hops=0):
         self.airtime = {'None': {}}
         self.sourceshift = sourceshift
         self.david = david
@@ -57,7 +57,7 @@ class Simulator:
         self.coding = coding
         self.fieldsize = fieldsize
         self.pos = None
-        self.getready(jsonfile=jsonfile, randcof=randcof)
+        self.getready(jsonfile=jsonfile, randcof=randcof, hops=hops)
         self.json = jsonfile
         self.randcof = randcof
         self.done = False
@@ -110,7 +110,12 @@ class Simulator:
         for node in self.nodes:
             node.setdeotx(eotx[str(node)])
             self.graph.nodes[str(node)]['DEOTX'] = eotx[str(node)]
-        self.calc_tx_credit(david=True)
+        credit = self.calc_tx_credit(david=True)
+        for node in self.nodes:
+            try:
+                node.setcredit(credit[str(node)])
+            except KeyError:
+                pass
         self.graph.add_weighted_edges_from(bestlinks)
 
     def calce(self, node, notnode=None, david=False):
@@ -139,12 +144,12 @@ class Simulator:
         K = 32 = Batchsize"""
 
         eotx = self.geteotx()
-        for node in self.nodes:
-            node.seteotx(eotx[str(node)])
-            self.graph.nodes[str(node)]['EOTX'] = eotx[str(node)]
+        for node in self.graph.nodes:
+            self.graph.nodes[node]['EOTX'] = eotx[str(node)]
 
     def calc_tx_credit(self, david=False):
         """Calculate the amount of tx credit the receiver gets."""
+        credit = {}
         if david:
             l_n = {node: self.graph.nodes[node]['DEOTX'] for node in self.graph.nodes}
         else:
@@ -173,21 +178,22 @@ class Simulator:
                     l_i[j] += self.z[node] * p * self.graph.edges[node, j]['weight']
                 except KeyError:
                     pass
-        for node in self.nodes:
+        for node in self.graph.nodes:
             if str(node) == 'D':
                 continue
             somevalue = 0
-            for neighbor in self.graph.neighbors(str(node)):
+            for neighbor in self.graph.neighbors(node):
                 if david:
-                    if self.graph.nodes[neighbor]['DEOTX'] > node.getdeotx():
-                        somevalue += self.z[neighbor] * self.graph.edges[str(node), neighbor]['weight']
+                    if self.graph.nodes[neighbor]['DEOTX'] > self.graph.nodes[node]['EOTX']:
+                        somevalue += self.z[neighbor] * self.graph.edges[node, neighbor]['weight']
                 else:
-                    if self.graph.nodes[neighbor]['EOTX'] > node.geteotx():
-                        somevalue += self.z[neighbor] * self.graph.edges[str(node), neighbor]['weight']
+                    if self.graph.nodes[neighbor]['EOTX'] > self.graph.nodes[node]['EOTX']:
+                        somevalue += self.z[neighbor] * self.graph.edges[node, neighbor]['weight']
             try:
-                node.setcredit(self.z[str(node)] / somevalue)
+                credit[node] = self.z[node] / somevalue
             except ZeroDivisionError:
                 pass
+        return credit
 
     def calcz(self, nodename, li, david):
         """Calculate metric like david does in MOREresilience."""
@@ -258,6 +264,24 @@ class Simulator:
         else:
             return True
 
+    def checkhops(self, hops):
+        """Find a combination of source and destination in given network with the wished amount of hops."""
+        path = nx.shortest_path(self.graph)
+        for source, destdict in path.items():
+            for destination, route in destdict.items():
+                if len(route) - 1 == hops:
+                    if source != 'S' and destination != 'D':
+                        mapping = dict(zip(source + destination + 'S' + 'D', 'S' + 'D' + source + destination))
+                    elif source != 'S':
+                        mapping = dict(zip(source + 'S', 'S' + source))
+                    elif destination != 'D':
+                        mapping = dict(zip(destination + 'D', 'D' + destination))
+                    else:
+                        return False
+                    self.graph = nx.relabel_nodes(self.graph, mapping)
+                    return False
+        return True     # Recreate graph as no path with wished length could be found
+
     def checkspecial(self, node, neighbor):
         """Return True if node should be able to send over special metric."""
         for invnei in self.graph.neighbors(neighbor):
@@ -317,10 +341,7 @@ class Simulator:
                 configlist.append((edge['nodes'][0], edge['nodes'][1], edge['loss']))
             self.graph = nx.Graph()
             self.graph.add_weighted_edges_from(configlist)
-        self.nodes = [components.Node(name=name, coding=self.coding, fieldsize=self.fieldsize, random=self.random)
-                      for name in self.graph.nodes]
-        for node in self.nodes:
-            self.ranklist[str(node)] = []
+        self.ranklist = {node: [] for node in self.graph.nodes}
 
     def createusedgraph(self):
         """Calculate resilience of network based on used edges with no failure."""
@@ -472,8 +493,8 @@ class Simulator:
 
     def geteotx(self):
         """Calculate EOTX for all nodes in network and return as dict."""
-        eotx = {str(node): float('inf') for node in self.nodes}
-        eotx_t = {str(node): 1 for node in self.nodes}
+        eotx = {str(node): float('inf') for node in self.graph.nodes}
+        eotx_t = {str(node): 1 for node in self.graph.nodes}
         eotx_p = eotx_t.copy()
         eotx['D'] = 0.
         q = {node: eotxvalue for node, eotxvalue in eotx.items()}
@@ -502,13 +523,15 @@ class Simulator:
             identifier = self.prevfail[0][0] + self.prevfail[0][1]
         return identifier
 
-    def getready(self, jsonfile=None, randcof=(10, 0.5)):
+    def getready(self, jsonfile=None, randcof=(10, 0.5), hops=0):
         """Do the basic stuff to get ready."""
         while jsonfile is None:
             try:
                 self.createnetwork(config=readconf(jsonfile), randcof=randcof)
+                if hops and self.checkhops(hops):
+                    continue
                 self.calceotx()
-                self.calc_tx_credit()
+                credit = self.calc_tx_credit()
             except ZeroDivisionError:
                 logging.info('Found graph with no connection between S and D')
                 continue
@@ -517,8 +540,19 @@ class Simulator:
         else:
             self.createnetwork(config=readconf(jsonfile), randcof=randcof)
             self.calceotx()
-            self.calc_tx_credit()
+            credit = self.calc_tx_credit()
             logging.info('Created network from JSON successfully!')
+        self.nodes = [components.Node(name=name, coding=self.coding, fieldsize=self.fieldsize, random=self.random)
+                      for name in self.graph.nodes]
+        for node in self.nodes:
+            try:
+                node.seteotx(self.graph.nodes[str(node)]['EOTX'])
+            except KeyError:
+                pass
+            try:
+                node.setcredit(credit[str(node)])
+            except KeyError:
+                pass
         self.mcut = nx.minimum_edge_cut(self.graph, s='S', t='D')
         self.dijkstra = nx.shortest_path(self.graph, source='S', target='D', weight='weight')
         if self.david:

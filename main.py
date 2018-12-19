@@ -108,8 +108,7 @@ if __name__ == '__main__':
                     sendall=args.sendam, own=args.own, edgefail=args.failedge, nodefail=args.failnode,
                     allfail=args.failall, randcof=args.randomnodes, folder=args.folder,
                     maxduration=args.maxduration, randomseed=randomnumber, sourceshift=args.sourceshift,
-                    david=args.david)
-
+                    david=args.david, hops=5)
     starttime = time.time()
     complete = False
     while not complete:
