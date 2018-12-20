@@ -733,7 +733,7 @@ def plotlatcdf(mainfolder=None, folders=None):
         p.xlabel('Latency in timeslots')
         # p.ylim([0.8, 1])
         # p.xlim(left=0)
-        # p.xscale('log')
+        p.xscale('log')
         p.xticks(rotation=90)
         p.grid(True)
         p.legend(loc='best')

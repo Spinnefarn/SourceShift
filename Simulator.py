@@ -40,6 +40,7 @@ class Simulator:
         logging.debug('Random seed: '.format(randomseed))
         self.random = randomseed
         self.maxduration = maxduration
+        self.eotxdict = {}
         self.config = {}
         self.graph = None
         self.folder = folder
@@ -231,6 +232,10 @@ class Simulator:
             graph.remove_edges_from(edgelist)
             try:
                 nx.shortest_path(graph, source='S', target='D')
+                if len(fail) == 1:
+                    self.eotxdict[fail] = self.geteotx()
+                else:
+                    self.eotxdict[fail[0] + fail[1]] = self.geteotx()
             except nx.exception.NetworkXNoPath:
                 lostlist.append(fail)
             graph.add_weighted_edges_from(edgelist)
@@ -568,6 +573,7 @@ class Simulator:
                 node.setcredit(credit[str(node)])
             except KeyError:
                 pass
+        self.eotxdict['None'] = self.geteotx()
         self.mcut = nx.minimum_edge_cut(self.graph, s='S', t='D')
         self.dijkstra = nx.shortest_path(self.graph, source='S', target='D', weight='weight')
         if self.david:
@@ -716,14 +722,6 @@ class Simulator:
                                  for edge in list(self.graph.edges)]}
         with open('{}/graph.json'.format(self.folder), 'w') as file:
             json.dump(information, file, indent=4, sort_keys=True)
-        nodedict = {}
-        for node in self.nodes:
-            if self.david:
-                nodedict[str(node)] = (node.geteotx(), node.getdeotx(), node.getcreditinc())
-            else:
-                nodedict[str(node)] = (node.geteotx(), node.getcreditinc())
-        with open('{}/eotx.json'.format(self.folder), 'w') as file:
-            json.dump(nodedict, file)
         if self.own:
             with open('{}/AAOWN.OWN'.format(self.folder), 'w') as file:
                 file.write('OWN')
@@ -736,3 +734,7 @@ class Simulator:
         if self.david:
             with open('{}/AADAVID.DAVID'.format(self.folder), 'w') as file:
                 file.write('DAVID')
+            daveotx = {str(node): node.geteotx() for node in self.nodes}
+            self.eotxdict['david'] = daveotx
+        with open('{}/eotx.json'.format(self.folder), 'w') as file:
+            json.dump(self.eotxdict, file)
