@@ -29,7 +29,7 @@ def drawunused(net=None, pos=None):
 
 
 # noinspection PyTypeChecker
-def getairtime(mainfolder=None, folders=None):
+def getairtime(mainfolder=None, folders=None, plotfail='all'):
     """Get parsed values and do statistics with it."""
     if folders is None:
         quit(1)
@@ -75,7 +75,7 @@ def getairtime(mainfolder=None, folders=None):
     plots, std = {}, {}
     failures = set()
     for protocol, dic in incdicts.items():
-        plots[protocol], std[protocol] = parseairtime(dic)
+        plots[protocol], std[protocol] = parseairtime(dic, plotfail=plotfail)
         failures |= {fail for fail in plots[protocol]}
     for fail in failures:
         for protocol in plots:
@@ -90,7 +90,7 @@ def getairtime(mainfolder=None, folders=None):
 
 
 # noinspection PyTypeChecker
-def getairtimemode(mainfolder=None, folders=None, mode='perhop'):
+def getairtimemode(mainfolder=None, folders=None, mode='perhop', plotfail='all'):
     """Get parsed values and do statistics with it."""
     if folders is None:
         quit(1)
@@ -158,7 +158,7 @@ def getairtimemode(mainfolder=None, folders=None, mode='perhop'):
         if protocol not in plots.keys():
             plots[protocol], std[protocol] = {}, {}
         for steps in dic.keys():
-            plots[protocol][steps], std[protocol][steps] = parseairtime(dic[steps])
+            plots[protocol][steps], std[protocol][steps] = parseairtime(dic[steps], plotfail=plotfail)
         stepset |= {key for key in plots[protocol].keys()}
     plotlist, stdlist = {}, {}
     plist, slist = {}, {}
@@ -174,7 +174,7 @@ def getairtimemode(mainfolder=None, folders=None, mode='perhop'):
 
 
 # noinspection PyTypeChecker
-def getfailhist(mainfolder=None, folders=None):
+def getfailhist(mainfolder=None, folders=None, plotfail='all'):
     """Get parsed values and do statistics with it."""
     if folders is None:
         quit(1)
@@ -220,7 +220,7 @@ def getfailhist(mainfolder=None, folders=None):
     plots = {}
     std = {}
     for protocol, dic in incdicts.items():
-        plots[protocol], std[protocol] = parsefail(dic)
+        plots[protocol], std[protocol] = parsefail(dic, plotfail=plotfail)
         failures |= {fail for fail in plots[protocol]}
     for fail in failures:
         for protocol in plots:
@@ -235,7 +235,7 @@ def getfailhist(mainfolder=None, folders=None):
 
 
 # noinspection PyTypeChecker
-def getfailhistmode(mainfolder=None, folders=None, mode='perhop'):
+def getfailhistmode(mainfolder=None, folders=None, mode='perhop', plotfail='all'):
     """Get parsed values and do statistics with it."""
     if folders is None:
         quit(1)
@@ -303,7 +303,7 @@ def getfailhistmode(mainfolder=None, folders=None, mode='perhop'):
         if protocol not in plots.keys():
             plots[protocol], std[protocol] = {}, {}
         for steps in dic.keys():
-            plots[protocol][steps], std[protocol][steps] = parsefail(dic[steps])
+            plots[protocol][steps], std[protocol][steps] = parsefail(dic[steps], plotfail=plotfail)
         stepset |= {key for key in plots[protocol].keys()}
     plotlist, stdlist = {}, {}
     plist, slist = {}, {}
@@ -318,11 +318,13 @@ def getfailhistmode(mainfolder=None, folders=None, mode='perhop'):
     return sorted(stepset), plist, slist, config
 
 
-def parseairtime(dic):
+def parseairtime(dic, plotfail='all'):
     """Parse given airtime dict."""
     plot, std = {}, {}
     firstfolder = list(dic.keys())[0]
     for fail in dic[firstfolder].keys():
+        if plotfail != 'all' and fail != plotfail:
+            continue
         counter = []
         for folder in dic.keys():
             try:
@@ -338,12 +340,14 @@ def parseairtime(dic):
     return plot, std
 
 
-def parsefail(dic):
+def parsefail(dic, plotfail='all'):
     """Parse given failhist dict."""
     plotlist, stdlist = {}, {}
     if len(dic) > 1:
         firstfolder = list(dic.keys())[0]
         for fail in dic[firstfolder].keys():
+            if plotfail != 'all' and fail != plotfail:
+                continue
             counter = []
             for folder in dic.keys():
                 try:
@@ -361,7 +365,7 @@ def parsefail(dic):
     return plotlist, stdlist
 
 
-def parseaircdf(mainfolder, folders, mode='regular'):
+def parseaircdf(mainfolder, folders, mode='regular', plotfail='all'):
     """Read and parse logs for plotting as cdf."""
     incdicts, globconfig = {}, {}
     for folder in folders:
@@ -410,6 +414,8 @@ def parseaircdf(mainfolder, folders, mode='regular'):
     for protocol in incdicts:
         plots[protocol] = {}
         for fail in failure:
+            if plotfail != 'all' and fail != plotfail:
+                continue
             counter = []
             for folder in incdicts[protocol].keys():
                 try:
@@ -445,7 +451,7 @@ def parseaircdf(mainfolder, folders, mode='regular'):
         return gainlist
 
 
-def parsefailcdf(mainfolder, folders, mode='regular'):
+def parsefailcdf(mainfolder, folders, mode='regular', plotfail='all'):
     """Read and parse logs for plotting as cdf."""
     incdicts = {}
     for folder in folders:
@@ -494,6 +500,8 @@ def parsefailcdf(mainfolder, folders, mode='regular'):
         plots[protocol] = {}
         if len(incdicts[protocol]) > 1:
             for fail in failure:
+                if plotfail != 'all' and fail != plotfail:
+                    continue
                 plots[protocol][fail] = []
                 counter = []
                 for folder in incdicts[protocol].keys():
@@ -670,7 +678,7 @@ def plotairtime(mainfolder=None, folders=None):
     p.close()
 
 
-def plotaircdf(mainfolder=None, folders=None):
+def plotaircdf(mainfolder=None, folders=None, plotfail='all'):
     """Plot airtime CDF."""
     if folders is None and mainfolder is not None:
         folders = []
@@ -681,7 +689,7 @@ def plotaircdf(mainfolder=None, folders=None):
                             if os.path.isdir('{}/{}/{}'.format(mainfolder, subfolder, subsubfolder))])
     if mainfolder is None:
         mainfolder = ''
-    plotlist = parseaircdf(mainfolder, folders)
+    plotlist = parseaircdf(mainfolder, folders, plotfail=plotfail)
     for mode in ['regular', 'close']:
         if mode == 'regular':
             p.figure(figsize=(4.2, 6.18))
@@ -689,7 +697,10 @@ def plotaircdf(mainfolder=None, folders=None):
             p.figure(figsize=(6.18, 4.2))
         for protocol in sorted(plotlist.keys()):
             p.plot(sorted(plotlist[protocol]), np.linspace(0, 1, len(plotlist[protocol])), label=protocol, alpha=0.8)
-        p.title('Used airtime per protocol')
+        if plotfail == 'all':
+            p.title('Used airtime per protocol')
+        else:
+            p.title('Used airtime per protocol for {} failure'.format(plotfail))
         p.ylabel('Fraction of Airtime')
         p.xlabel('Airtime in transmissions')
         # p.ylim([0.8, 1])
@@ -701,14 +712,14 @@ def plotaircdf(mainfolder=None, folders=None):
         p.tight_layout()
         if mode == 'regular':
             p.ylim([0, 1])
-            p.savefig('{}/airtimecdf.pdf'.format(mainfolder))
+            p.savefig('{}/air{}cdf.pdf'.format(mainfolder, plotfail))
         else:
             p.ylim([0.95, 1])
-            p.savefig('{}/airclosecdf.pdf'.format(mainfolder))
+            p.savefig('{}/air{}closecdf.pdf'.format(mainfolder, plotfail))
         p.close()
 
 
-def plotlatcdf(mainfolder=None, folders=None):
+def plotlatcdf(mainfolder=None, folders=None, plotfail='all'):
     """Plot latency CDF."""
     if folders is None and mainfolder is not None:
         folders = []
@@ -719,7 +730,7 @@ def plotlatcdf(mainfolder=None, folders=None):
                             if os.path.isdir('{}/{}/{}'.format(mainfolder, subfolder, subsubfolder))])
     if mainfolder is None:
         mainfolder = ''
-    plotlist = parsefailcdf(mainfolder, folders)
+    plotlist = parsefailcdf(mainfolder, folders, plotfail=plotfail)
     for mode in ['regular', 'close']:
         if mode == 'regular':
             p.figure(figsize=(4.2, 6.18))
@@ -728,7 +739,10 @@ def plotlatcdf(mainfolder=None, folders=None):
         for protocol in sorted(plotlist.keys()):
             p.plot(sorted(plotlist[protocol]), np.linspace(0, 1, len(plotlist[protocol])), label=protocol, alpha=0.8)
         # p.axvline(x=5000, linestyle='--', color='black')
-        p.title('Required latency per protocol')
+        if plotfail == 'all':
+            p.title('Required latency per protocol')
+        else:
+            p.title('Required latency per protocol and {} failure'.format(plotfail))
         p.ylabel('Fraction of Latency')
         p.xlabel('Latency in timeslots')
         # p.ylim([0.8, 1])
@@ -740,10 +754,10 @@ def plotlatcdf(mainfolder=None, folders=None):
         p.tight_layout()
         if mode == 'regular':
             p.ylim([0, 1])
-            p.savefig('{}/latencycdf.pdf'.format(mainfolder))
+            p.savefig('{}/lat{}cdf.pdf'.format(mainfolder, plotfail))
         else:
             p.ylim([0.95, 1])
-            p.savefig('{}/latclosecdf.pdf'.format(mainfolder))
+            p.savefig('{}/lat{}closecdf.pdf'.format(mainfolder, plotfail))
         p.close()
 
 
@@ -1042,11 +1056,11 @@ if __name__ == '__main__':
         # plotairtime(mfolder, folderlst)
         # plotgain(mfolder, folderlst)
         # plotfailhist(mfolder, folderlst)
-    # plotaircdf(date)
-    plotlatcdf(date)
+    plotaircdf(date, plotfail='None')
+    plotlatcdf(date, plotfail='None')
     # plotgaincdf(date)
     # plotperhop(date)
     # plotperhop(date, kind='mcut')
     # plotqq(['../expdav', '../expnodav'])
     # plottrash(date)
-    plotgraph(folders=folderlist)
+    # plotgraph(folders=folderlist)

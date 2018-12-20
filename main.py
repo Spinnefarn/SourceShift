@@ -26,7 +26,7 @@ def parse_args():
                         dest='coding',
                         type=int,
                         help='Batch size for coded packets. Default None(without coding)',
-                        default=8)
+                        default=42)
     parser.add_argument('-f', '--fieldsize',
                         dest='fieldsize',
                         type=int,
