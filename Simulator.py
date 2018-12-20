@@ -28,9 +28,10 @@ class Simulator:
     """Round based simulator to simulate traffic in meshed network."""
     def __init__(self, jsonfile=None, coding=None, fieldsize=2, sendall=0, own=True, edgefail=None, nodefail=None,
                  allfail=False, randcof=(10, 0.5), folder='.', maxduration=0, randomseed=None, sourceshift=False,
-                 david=False, edgefailprob=0.1, hops=0):
+                 newshift=False, david=False, edgefailprob=0.1, hops=0):
         self.airtime = {'None': {}}
         self.sourceshift = sourceshift
+        self.newshift = newshift
         self.david = david
         self.edgefail = edgefail
         self.nodefail = nodefail
@@ -245,6 +246,8 @@ class Simulator:
                 logging.info('Resilience for MORELESS is {}'.format(self.resilience[1]))
             elif self.sourceshift:
                 logging.info('Resilience for source shift is {}'.format(self.resilience[1]))
+            elif self.newshift:
+                logging.info('Resilience for new shift is {}'.format(self.resilience[1]))
             elif self.own:
                 logging.info('Resilience for own approach is {}'.format(self.resilience[1]))
             else:
@@ -270,15 +273,20 @@ class Simulator:
         for source, destdict in path.items():
             for destination, route in destdict.items():
                 if len(route) - 1 == hops:
-                    if source != 'S' and destination != 'D':
-                        mapping = dict(zip(source + destination + 'S' + 'D', 'S' + 'D' + source + destination))
-                    elif source != 'S':
-                        mapping = dict(zip(source + 'S', 'S' + source))
-                    elif destination != 'D':
-                        mapping = dict(zip(destination + 'D', 'D' + destination))
+                    if source == 'D':
+                        mapping = {destination: 'D', 'D': 'S', 'S': destination}
+                        self.graph = nx.relabel_nodes(self.graph, mapping, copy=False)
+                    elif destination == 'S':
+                        mapping = {'S': 'D', source: 'S', 'D': source}
+                        self.graph = nx.relabel_nodes(self.graph, mapping, copy=False)
                     else:
-                        return False
-                    self.graph = nx.relabel_nodes(self.graph, mapping)
+                        if source != 'S':
+                            mapping = dict(zip(source + 'S', 'S' + source))
+                            self.graph = nx.relabel_nodes(self.graph, mapping, copy=False)
+                        if destination != 'D':
+                            mapping = dict(zip(destination + 'D', 'D' + destination))
+                            self.graph = nx.relabel_nodes(self.graph, mapping, copy=False)
+
                     return False
         return True     # Recreate graph as no path with wished length could be found
 
@@ -310,6 +318,7 @@ class Simulator:
                         break
             if allcomplete:
                 node.stopsending()
+
         for node in self.nodes:
             if node.getcredit() != float('inf') and node.isdone():
                 for neighbor in self.graph.neighbors(str(node)):
@@ -320,8 +329,13 @@ class Simulator:
                     if self.graph.nodes[str(node)]['EOTX'] > self.graph.nodes[neighbor]['EOTX'] or david:
                         for neighbornode in self.nodes:
                             if str(neighbornode) == neighbor:
-                                if not neighbornode.isdone() or neighbornode.getbatch() < node.getbatch():
-                                    node.becomesource()
+                                if self.sourceshift:
+                                    if not neighbornode.isdone() or neighbornode.getbatch() < node.getbatch():
+                                        node.becomesource()
+                                if self.newshift:
+                                    if neighbornode.getrank() < node.getrank() \
+                                            or neighbornode.getbatch() < node.getbatch():
+                                        node.becomesource()
                                 break
 
     def createnetwork(self, config=None, randcof=(10, 0.5)):
@@ -535,6 +549,10 @@ class Simulator:
             except ZeroDivisionError:
                 logging.info('Found graph with no connection between S and D')
                 continue
+            except nx.exception.NetworkXException:
+                logging.info(str(self.graph.nodes))
+                logging.info(str(self.graph.edges))
+                continue
             logging.info('Created random graph successfully!')
             break
         else:
@@ -547,9 +565,6 @@ class Simulator:
         for node in self.nodes:
             try:
                 node.seteotx(self.graph.nodes[str(node)]['EOTX'])
-            except KeyError:
-                pass
-            try:
                 node.setcredit(credit[str(node)])
             except KeyError:
                 pass
@@ -641,7 +656,7 @@ class Simulator:
     def update(self):
         """Update one timestep."""
         if not self.done:
-            if self.sourceshift:
+            if self.sourceshift or self.newshift:
                 self.checkstate()
             if self.sendam:
                 self.sendsel()
@@ -673,8 +688,9 @@ class Simulator:
         config = {'json': self.json, 'coding': self.coding, 'fieldsize': self.fieldsize, 'sendam': self.sendam,
                   'own': self.own, 'failedge': self.edgefail, 'failnode': self.nodefail, 'failall': self.allfail,
                   'randconf': self.randcof, 'folder': self.folder, 'maxduration': self.maxduration,
-                  'randomseed': self.random, 'sourceshift': self.sourceshift, 'david': self.david,
-                  'resilience': self.resilience, 'path': list(self.dijkstra), 'mcut': list(self.mcut)}
+                  'randomseed': self.random, 'sourceshift': self.sourceshift, 'newshift': self.newshift,
+                  'david': self.david, 'resilience': self.resilience, 'path': list(self.dijkstra),
+                  'mcut': list(self.mcut)}
         with open('{}/config.json'.format(self.folder), 'w') as file:
             json.dump(config, file)
         for kind in ['overhearing', 'real']:
@@ -714,6 +730,9 @@ class Simulator:
         if self.sourceshift:
             with open('{}/AASS.SS'.format(self.folder), 'w') as file:
                 file.write('SS')
+        if self.newshift:
+            with open('{}/AANS.SS'.format(self.folder), 'w') as file:
+                file.write('NS')
         if self.david:
             with open('{}/AADAVID.DAVID'.format(self.folder), 'w') as file:
                 file.write('DAVID')

@@ -2,7 +2,6 @@
 # coding=utf-8
 """Contains bacic network objects like Packets etc.."""
 import numpy as np
-import logging
 import kodo
 import os
 
@@ -67,9 +66,10 @@ class Node:
 
     def becomesource(self):
         """Act like source. Will be triggered if all neighbors are complete."""
-        if not self.complete:
-            logging.error('All neighbors are complete but not this one? '.format(self.name))
-        self.creditcounter += 1
+        if self.complete:
+            self.creditcounter += 1     # Send next timeslot if you should and your done
+        elif self.credit < 0.:
+            self.creditcounter += 1     # Just ignore MORE if it ignores you
 
     def fail(self):
         """Set nodes state to fail."""

@@ -47,10 +47,15 @@ def parse_args():
                         type=bool,
                         help='Use own approach or MORE.',
                         default=False)
-    parser.add_argument('-s', '--sourceshift',
+    parser.add_argument('-ss', '--sourceshift',
                         dest='sourceshift',
                         type=bool,
                         help='Enable source shifting',
+                        default=False)
+    parser.add_argument('-ns', '--newshift',
+                        dest='newshift',
+                        type=bool,
+                        help='Enable new shifting, means enhanced version of source shift',
                         default=False)
     parser.add_argument('-m', '--multiprocessing',
                         dest='multiprocessing',
@@ -97,7 +102,8 @@ def runsim(config):
                     sendall=config['sendam'], own=config['own'], edgefail=config['failedge'],
                     nodefail=config['failnode'], allfail=config['failall'], randcof=config['randconf'],
                     folder=config['folder'], maxduration=config['maxduration'], randomseed=randomseed,
-                    sourceshift=config['sourceshift'], david=config['david'], hops=config['hops'])
+                    sourceshift=config['sourceshift'], newshift=config['newshift'], david=config['david'],
+                    hops=config['hops'])
     logging.info('Start simulator {}'.format(config['folder']))
     starttime = time.time()
     complete = False
@@ -130,25 +136,28 @@ def cleanfolder(folder):
             os.remove(os.path.join(folder, f))
 
 
-def setmode(config, number):
+def setmode(config, count):
     """Set config mode."""
-    mode = ['oss', 'o', 'ss', 'davidss', 'david', 'm']
+    mode = ['oss', 'o', 'ns', 'ss', 'davidss', 'david', 'm']
     try:
-        number = int(number) % len(mode)
+        count = int(count) % len(mode)
     except (TypeError, ValueError):
-        number = 0
-    if mode[number] == 'm':
-        config['own'], config['sourceshift'], config['david'] = False, False, 0.0
-    elif mode[number] == 'o':
-        config['own'], config['sourceshift'], config['david'] = True, False, 0.0
-    elif mode[number] == 'ss':
-        config['own'], config['sourceshift'], config['david'] = False, True, 0.0
-    elif mode[number] == 'oss':
-        config['own'], config['sourceshift'], config['david'] = True, True, 0.0
-    elif mode[number] == 'davidss':
-        config['own'], config['sourceshift'], config['david'] = False, True, 1.0
-    elif mode[number] == 'david':
-        config['own'], config['sourceshift'], config['david'] = False, False, 1.0
+        count = 0
+    config['own'], config['sourceshift'], config['newshift'], config['david'] = False, False, False, 0.0
+    if mode[count] == 'm':
+        pass
+    elif mode[count] == 'o':
+        config['own'] = True
+    elif mode[count] == 'ss':
+        config['sourceshift'] = True
+    elif mode[count] == 'ns':
+        config['newshift'] = True
+    elif mode[count] == 'oss':
+        config['own'], config['sourceshift'] = True, True
+    elif mode[count] == 'davidss':
+        config['sourceshift'], config['david'] = True, 1.0
+    elif mode[count] == 'david':
+        config['david'] = 1.0
     return config
 
 
@@ -170,6 +179,7 @@ def plotall(mfolder, counter, liste):
 
 if __name__ == '__main__':
     args = parse_args()
+    os.remove('main.log')
     llevel = logging.INFO
     logging.basicConfig(
         filename='main.log',
@@ -181,12 +191,13 @@ if __name__ == '__main__':
     # date = '../exp'
     plot, plotconf = None, None
     processes = []
-    for i in range(1):
+    for i in range(100):
         logging.info('Created new graph at graph{}'.format(i))
         confdict = {'json': args.json, 'randconf': args.amount, 'coding': args.coding, 'fieldsize': args.fieldsize,
                     'sendam': args.sendam, 'own': args.own, 'failedge': args.failedge, 'failnode': args.failnode,
                     'failall': False, 'folder': '{}/graph{}/test'.format(date, i), 'maxduration': args.maxduration,
-                    'random': args.random, 'sourceshift': args.sourceshift, 'david': 0.0, 'hops': (i + 1) % 16}
+                    'random': args.random, 'sourceshift': args.sourceshift, 'newshift': args.newshift,
+                    'david': 0.0, 'hops': (i + 1) % 8}
         cleanfolder(confdict['folder'])
         launchsubp(confdict)
         while not os.path.exists(confdict['folder'] + '/graph.json'):
@@ -215,17 +226,19 @@ if __name__ == '__main__':
                 # confdict['maxduration'] = 5000
                 while True:
                     if cpu_count() > len(active_children()):
-                        launchsubp(confdict)
-                        break
-                    else:
-                        time.sleep(1)
+                        try:
+                            launchsubp(confdict)
+                            break
+                        except OSError:
+                            pass
+                    time.sleep(1)
         except KeyboardInterrupt:
             print('Got KeyboardInterrupt!')
             break
         dellist = []
         for i in range(len(processes)):
             if not processes[i].is_alive():
-                processes[i].close()
+                # processes[i].close()
                 dellist.append(i)
         while dellist:
             number = dellist.pop()

@@ -1,8 +1,8 @@
 #!/usr/bin/python
 # coding=utf-8
 """Will collect interesting logs from subfolders and draw plots."""
-import matplotlib
-matplotlib.rcParams['backend'] = 'pdf'
+from matplotlib import use
+use('Agg')
 import matplotlib.pylab as p
 p.rcParams['font.family'] = 'sans-serif'
 p.rcParams['font.size'] = 12
@@ -60,6 +60,10 @@ def getairtime(mainfolder=None, folders=None):
             if 'Source Shift' not in incdicts.keys():
                 incdicts['Source Shift'] = {}
             incdicts['Source Shift'][folder] = airtime
+        elif config['newshift']:
+            if 'New Shift' not in incdicts.keys():
+                incdicts['New Shift'] = {}
+            incdicts['New Shift'][folder] = airtime
         elif config['david']:
             if 'MOREresilience' not in incdicts.keys():
                 incdicts['MOREresilience'] = {}
@@ -130,6 +134,12 @@ def getairtimemode(mainfolder=None, folders=None, mode='perhop'):
             if ident not in incdicts['Source Shift'].keys():
                 incdicts['Source Shift'][ident] = {}
             incdicts['Source Shift'][ident][folder] = airtime
+        elif config['newshift']:
+            if 'New Shift' not in incdicts.keys():
+                incdicts['New Shift'] = {}
+            if ident not in incdicts['New Shift'].keys():
+                incdicts['New Shift'][ident] = {}
+            incdicts['New Shift'][ident][folder] = airtime
         elif config['david']:
             if 'MOREresilience' not in incdicts.keys():
                 incdicts['MOREresilience'] = {}
@@ -194,6 +204,10 @@ def getfailhist(mainfolder=None, folders=None):
             if 'Source Shift' not in incdicts.keys():
                 incdicts['Source Shift'] = {}
             incdicts['Source Shift'][folder] = {key: value[0] for key, value in failhist.items()}
+        elif config['newshift']:
+            if 'New Shift' not in incdicts.keys():
+                incdicts['New Shift'] = {}
+            incdicts['New Shift'][folder] = {key: value[0] for key, value in failhist.items()}
         elif config['david']:
             if 'MOREresilience' not in incdicts.keys():
                 incdicts['MOREresilience'] = {}
@@ -264,6 +278,12 @@ def getfailhistmode(mainfolder=None, folders=None, mode='perhop'):
             if ident not in incdicts['Source Shift'].keys():
                 incdicts['Source Shift'][ident] = {}
             incdicts['Source Shift'][ident][folder] = {key: value[0] for key, value in failhist.items()}
+        elif config['newshift']:
+            if 'New Shift' not in incdicts.keys():
+                incdicts['New Shift'] = {}
+            if ident not in incdicts['New Shift'].keys():
+                incdicts['New Shift'][ident] = {}
+            incdicts['New Shift'][ident][folder] = {key: value[0] for key, value in failhist.items()}
         elif config['david']:
             if 'MOREresilience' not in incdicts.keys():
                 incdicts['MOREresilience'] = {}
@@ -366,6 +386,10 @@ def parseaircdf(mainfolder, folders, mode='regular'):
                 if 'Source Shift' not in incdicts.keys():
                     incdicts['Source Shift'] = {}
                 incdicts['Source Shift'][folder] = airtime
+            elif config['newshift']:
+                if 'New Shift' not in incdicts.keys():
+                    incdicts['New Shift'] = {}
+                incdicts['New Shift'][folder] = airtime
             elif config['david']:
                 if 'MOREresilience' not in incdicts.keys():
                     incdicts['MOREresilience'] = {}
@@ -447,6 +471,10 @@ def parsefailcdf(mainfolder, folders, mode='regular'):
                 if 'Source Shift' not in incdicts.keys():
                     incdicts['Source Shift'] = {}
                 incdicts['Source Shift'][folder] = {key: value[0] for key, value in failhist.items()}
+            elif config['newshift']:
+                if 'New Shift' not in incdicts.keys():
+                    incdicts['New Shift'] = {}
+                incdicts['New Shift'][folder] = {key: value[0] for key, value in failhist.items()}
             elif config['david']:
                 if 'MOREresilience' not in incdicts.keys():
                     incdicts['MOREresilience'] = {}
@@ -675,7 +703,7 @@ def plotaircdf(mainfolder=None, folders=None):
             p.ylim([0, 1])
             p.savefig('{}/airtimecdf.pdf'.format(mainfolder))
         else:
-            p.ylim([0.9, 1])
+            p.ylim([0.95, 1])
             p.savefig('{}/airclosecdf.pdf'.format(mainfolder))
         p.close()
 
@@ -699,7 +727,7 @@ def plotlatcdf(mainfolder=None, folders=None):
             p.figure(figsize=(6.18, 4.2))
         for protocol in sorted(plotlist.keys()):
             p.plot(sorted(plotlist[protocol]), np.linspace(0, 1, len(plotlist[protocol])), label=protocol, alpha=0.8)
-        p.axvline(x=5000, linestyle='--', color='black')
+        # p.axvline(x=5000, linestyle='--', color='black')
         p.title('Required latency per protocol')
         p.ylabel('Fraction of Latency')
         p.xlabel('Latency in timeslots')
@@ -714,7 +742,7 @@ def plotlatcdf(mainfolder=None, folders=None):
             p.ylim([0, 1])
             p.savefig('{}/latencycdf.pdf'.format(mainfolder))
         else:
-            p.ylim([0.9, 1])
+            p.ylim([0.95, 1])
             p.savefig('{}/latclosecdf.pdf'.format(mainfolder))
         p.close()
 
@@ -841,7 +869,7 @@ def plotgraph(folders=None):
         net = nx.Graph()
         net.add_weighted_edges_from(configlist)
         # for node in net.nodes:        # Do not plot EOTX as its confusing for audience
-            # net.nodes[node]['EOTX'] = eotx[node][0]
+        #    net.nodes[node]['EOTX'] = eotx[node][0]
         prevfail = None
         for fail in failhist.keys():
             if fail != 'None':
