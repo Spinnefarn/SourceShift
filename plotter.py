@@ -318,6 +318,81 @@ def getfailhistmode(mainfolder=None, folders=None, mode='perhop', plotfail='all'
     return sorted(stepset), plist, slist, config
 
 
+# noinspection PyTypeChecker
+def getopt(mainfolder=None, folders=None, plotfail='all'):
+    """Get parsed values and do statistics with it."""
+    if folders is None:
+        quit(1)
+    if mainfolder is None:
+        mainfolder = ''
+    globconfig = {}
+    incdicts = {}
+    for folder in folders:
+        airtime, config = readairtime('{}/{}'.format(mainfolder, folder))
+        eotx = readeotx('{}/{}'.format(mainfolder, folder))
+        if airtime is None or config is None or eotx is None:
+            logging.warning('Can not read log at {}! Continue'.format(folder))
+            continue
+        if not globconfig:
+            globconfig = config
+        if config['own'] and config['sourceshift']:
+            if 'MORELESS' not in incdicts.keys():
+                incdicts['MORELESS'] = {}
+            incdicts['MORELESS'][folder] = airtime
+        elif config['sourceshift'] and config['david']:
+            if 'MORERESS' not in incdicts.keys():
+                incdicts['MORERESS'] = {}
+            incdicts['MORERESS'][folder] = airtime
+        elif config['own']:
+            if 'Send Aback' not in incdicts.keys():
+                incdicts['Send Aback'] = {}
+            incdicts['Send Aback'][folder] = airtime
+        elif config['sourceshift']:
+            if 'Source Shift' not in incdicts.keys():
+                incdicts['Source Shift'] = {}
+            incdicts['Source Shift'][folder] = airtime
+        elif config['newshift']:
+            if 'New Shift' not in incdicts.keys():
+                incdicts['New Shift'] = {}
+            incdicts['New Shift'][folder] = airtime
+        elif config['david']:
+            if 'MOREresilience' not in incdicts.keys():
+                incdicts['MOREresilience'] = {}
+            incdicts['MOREresilience'][folder] = airtime
+        else:
+            if 'MORE' not in incdicts.keys():
+                incdicts['MORE'] = {}
+            incdicts['MORE'][folder] = airtime
+        if 'Optimal' not in incdicts.keys():
+            incdicts['Optimal'] = {}
+        incdicts['Optimal'][folder] = eotx
+    plots = {}
+    for protocol, dic in incdicts.items():
+        plots[protocol] = {}
+        for folder, content in dic.items():
+            for fail, nodes in content.items():
+                if plotfail != 'all' and fail != plotfail:
+                    continue
+                for node, airtime in nodes.items():
+                    if isinstance(airtime, float):
+                        if airtime != float('inf') and node != 'D':
+                            value = airtime
+                        else:
+                            continue
+                    else:
+                        value = len(airtime) / globconfig['coding']
+                    if node not in plots[protocol].keys():
+                        plots[protocol][node] = [value]
+                    else:
+                        plots[protocol][node].append(value)
+    plotlist = {}
+    for protocol in sorted(plots.keys()):
+        plotlist[protocol] = {}
+        for node in sorted(plots[protocol].keys()):
+            plotlist[protocol][node] = statistics.mean(plots[protocol][node]) / len(incdicts[protocol])
+    return plotlist
+
+
 def parseairtime(dic, plotfail='all'):
     """Parse given airtime dict."""
     plot, std = {}, {}
@@ -611,6 +686,15 @@ def readairtime(folder):
     return airtime, config
 
 
+def readeotx(folder):
+    """Read logs from folder."""
+    eotx = None
+    if os.path.exists('{}/eotx.json'.format(folder)):
+        with open('{}/eotx.json'.format(folder)) as file:
+            eotx = json.loads(file.read())
+    return eotx
+
+
 def readfailhist(folder):
     """Read logs from folder."""
     if os.path.exists('{}/failhist.json'.format(folder)) and os.path.exists('{}/config.json'.format(folder)):
@@ -700,7 +784,7 @@ def plotaircdf(mainfolder=None, folders=None, plotfail='all'):
         if plotfail == 'all':
             p.title('Used airtime per protocol')
         else:
-            p.title('Used airtime per protocol for {} failure'.format(plotfail))
+            p.title('Used airtime for {} failure'.format(plotfail))
         p.ylabel('Fraction of Airtime')
         p.xlabel('Airtime in transmissions')
         # p.ylim([0.8, 1])
@@ -742,7 +826,7 @@ def plotlatcdf(mainfolder=None, folders=None, plotfail='all'):
         if plotfail == 'all':
             p.title('Required latency per protocol')
         else:
-            p.title('Required latency per protocol and {} failure'.format(plotfail))
+            p.title('Required latency and {} failure'.format(plotfail))
         p.ylabel('Fraction of Latency')
         p.xlabel('Latency in timeslots')
         # p.ylim([0.8, 1])
@@ -922,6 +1006,35 @@ def plotgraph(folders=None):
     p.close()
 
 
+def plotopt(mainfolder=None, plotfail='all'):
+    """Plot achieved airtime and optimal one per node."""
+    if mainfolder is None:
+        return
+    folders = []
+    cmain = [folder for folder in os.listdir(mainfolder) if os.path.isdir('{}/{}'.format(mainfolder, folder))]
+    for subfolder in cmain:
+        folders.extend(['{}/{}'.format(subfolder, subsubfolder)
+                        for subsubfolder in os.listdir('{}/{}'.format(mainfolder, subfolder))
+                        if os.path.isdir('{}/{}/{}'.format(mainfolder, subfolder, subsubfolder))])
+    plotlist = getopt(mainfolder, folders, plotfail=plotfail)
+    width = 0.9 / len(plotlist.keys())
+    p.figure(figsize=(20, 8.4))
+    for protocol in plotlist.keys():
+        ind = [x + list(sorted(plotlist.keys())).index(protocol) * width for x in range(len(plotlist[protocol]))]
+        p.bar(ind, plotlist[protocol].values(), width=width, label=protocol)
+    p.legend(loc='best')
+    p.yscale('log')
+    p.ylabel('Airtime per node')
+    p.xlabel('Nodes')
+    ind = [x + 0.5 for x in range(len(list(plotlist[list(plotlist.keys())[0]])))]
+    p.xticks(ind, labels=list(plotlist[list(plotlist.keys())[0]].keys()))
+    p.title('Needed airtime over nodes, optimal value with failure knowledge and achieved values')
+    p.grid(True)
+    p.tight_layout()
+    p.savefig('{}/airopt{}bar.pdf'.format(mainfolder, plotfail))
+    p.close()
+
+
 def plotperhop(mainfolder=None, kind='perhop'):
     """Plot fancy graphs per hop count."""
     if mainfolder is None:
@@ -1042,7 +1155,7 @@ if __name__ == '__main__':
     logging.basicConfig(filename='plotlog.log', level=logging.DEBUG, filemode='w')
     now = datetime.datetime.now()
     # date = str(int(str(now.year) + str(now.month) + str(now.day)))
-    date = '20181212'
+    date = '../20181220'
     folderlist = []
     for i in range(3):
         folderlst = []
@@ -1056,8 +1169,10 @@ if __name__ == '__main__':
         # plotairtime(mfolder, folderlst)
         # plotgain(mfolder, folderlst)
         # plotfailhist(mfolder, folderlst)
-    plotaircdf(date, plotfail='None')
-    plotlatcdf(date, plotfail='None')
+    plotopt(date)
+    plotopt(date, plotfail='None')
+    # plotaircdf(date, plotfail='None')
+    # plotlatcdf(date, plotfail='None')
     # plotgaincdf(date)
     # plotperhop(date)
     # plotperhop(date, kind='mcut')
