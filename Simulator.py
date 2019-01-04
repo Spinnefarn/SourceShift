@@ -4,9 +4,6 @@
 import components
 import json
 import networkx as nx
-from matplotlib import use
-use('Agg')
-import matplotlib.pylab as plt
 import random
 import os
 import logging
@@ -28,10 +25,11 @@ class Simulator:
     """Round based simulator to simulate traffic in meshed network."""
     def __init__(self, jsonfile=None, coding=None, fieldsize=2, sendall=0, own=True, edgefail=None, nodefail=None,
                  allfail=False, randcof=(10, 0.5), folder='.', maxduration=0, randomseed=None, sourceshift=False,
-                 newshift=False, david=False, edgefailprob=0.1, hops=0):
+                 newshift=False, david=False, edgefailprob=0.1, hops=0, optimal=False):
         self.airtime = {'None': {}}
         self.sourceshift = sourceshift
         self.newshift = newshift
+        self.optimal = optimal
         self.david = david
         self.edgefail = edgefail
         self.nodefail = nodefail
@@ -82,9 +80,10 @@ class Simulator:
                                 special = self.checkspecial(node, neighbor) if self.own else False
                                 name.buffpacket(batch=node.getbatch(), coding=packet, preveotx=node.geteotx(),
                                                 prevdeotx=node.getdeotx(), special=special, ts=self.timestamp)
-                                if str(node) + neighbor not in self.path[self.getidentifier()]:
-                                    self.path[self.getidentifier()][(str(node) + neighbor)] = []
-                                self.path[self.getidentifier()][(str(node) + neighbor)].append(self.timestamp)
+                                ident = self.getidentifier()
+                                if str(node) + neighbor not in self.path[ident]:
+                                    self.path[ident][(str(node) + neighbor)] = []
+                                self.path[ident][(str(node) + neighbor)].append(self.timestamp)
                             break
 
     def calcairtime(self):
@@ -129,7 +128,7 @@ class Simulator:
                 e *= (1 - self.graph.edges[node, neighbor]['weight'])
         return e
 
-    def calceotx(self):
+    def calceotx(self, fail='None'):
         """Calculate ETX for every node. i/j current node,
         N amount of nodes,
         e_ij loss between i and j,
@@ -148,6 +147,7 @@ class Simulator:
         eotx = self.geteotx()
         for node in self.graph.nodes:
             self.graph.nodes[node]['EOTX'] = eotx[str(node)]
+        self.eotxdict[fail] = eotx
 
     def calc_tx_credit(self, david=False):
         """Calculate the amount of tx credit the receiver gets."""
@@ -232,10 +232,6 @@ class Simulator:
             graph.remove_edges_from(edgelist)
             try:
                 nx.shortest_path(graph, source='S', target='D')
-                if len(fail) == 1:
-                    self.eotxdict[fail] = self.geteotx()
-                else:
-                    self.eotxdict[fail[0] + fail[1]] = self.geteotx()
             except nx.exception.NetworkXNoPath:
                 lostlist.append(fail)
             graph.add_weighted_edges_from(edgelist)
@@ -371,53 +367,11 @@ class Simulator:
         resg.add_weighted_edges_from(edgelist)
         return resg
 
-    def drawtrash(self, kind=None):
-        """Draw linear dependent packets over time and nodes. Do not use! Will move to plotter, at some time."""
-        maxval, sumval = [], []
-        width = self.batch * 2
-        plt.figure(figsize=(width, 5))
-        trashdict = {}
-        amts = {ts: 0 for ts in range(self.timestamp)}
-        cmap, colorcounter = plt.get_cmap('tab20'), 0
-        for node in self.nodes:
-            if str(node) != 'S':
-                if kind == 'real':
-                    trash, amount = node.getrealtrash(self.timestamp)
-                else:
-                    trash, amount = node.gettrash(self.timestamp)
-                trashdict[str(node)] = (trash, amount)
-                plt.bar(trash, amount, bottom=list(amts.values()), label=str(node), color=cmap(colorcounter), alpha=0.5)
-                for trashtime, number in zip(trash, amount):
-                    if trashtime in amts:
-                        amts[trashtime] += number
-                    else:
-                        amts[trashtime] = number
-                if len(amount):
-                    maxval.append(max(amount))
-                    sumval.append(sum(amount))
-            colorcounter += 1
-        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-        plt.ylabel('Amount of linear depended packets')
-        plt.xlabel('Timestamp')
-        plt.ylim(bottom=0)
-        plt.xlim(left=0)
-        # plt.yticks(range(1, max(amts.values()) + 1, 1))
-        plt.title('Amount of linear dependent packets for each node.')
-        # plt.grid(True)
-        plt.tight_layout()
-        own = 'own' if self.own else ''
-        if kind == 'real':
-            plt.savefig('{}/{}reallineardependent.pdf'.format(self.folder, own))
-        else:
-            plt.savefig('{}/{}lineardependent.pdf'.format(self.folder, own))
-        plt.close()
-        if kind == 'real':
-            logging.info('{} linear dependent packets arrived from parents.'.format(sum(sumval)))
-        else:
-            logging.info('{} linear dependent packets arrived by overhearing children.'.format(sum(sumval)))
-
     def failall(self):
         """Kill one of all."""
+        if not len(self.interesting):
+            logging.info('Nothing interesting?!')
+            return False
         if self.prevfail is None:
             if len(self.interesting[0]) == 1:
                 for node in self.nodes:
@@ -623,10 +577,43 @@ class Simulator:
             self.failedge(edge=self.edgefail)
         else:
             return True
+        if self.optimal:
+            self.recalc()
         self.airtime[self.getidentifier()] = {}
         self.path[self.getidentifier()] = {}
         self.batchhist.append(self.timestamp)
         self.timestamp = 0
+
+    def recalc(self):
+        """Recalc metric for current failure."""
+        if isinstance(self.prevfail, int):
+            fail = str(self.nodes[self.prevfail])
+        elif isinstance(self.prevfail, tuple):
+            fail = self.prevfail[0][0] + self.prevfail[0][1]
+        else:
+            return
+        if len(fail) == 1:
+            edgelist = [(fail, neighbor, self.graph.edges[fail, neighbor]['weight'])
+                        for neighbor in self.graph.neighbors(fail)]
+        else:
+            edgelist = [(fail[0], fail[1], self.graph.edges[fail[0], fail[1]]['weight'])]
+        self.graph.remove_edges_from(edgelist)
+        credit = {}
+        try:
+            self.calceotx(fail=fail)
+            credit = self.calc_tx_credit()
+        except ZeroDivisionError:
+            logging.error('Failed to recalc EOTX or credit for {}'.format(edgelist))
+            logging.error(str(self.graph.nodes))
+            logging.error(str(self.graph.edges))
+        for node in self.nodes:
+            try:
+                node.resetcredit()
+                node.seteotx(self.graph.nodes[str(node)]['EOTX'])
+                node.setcredit(credit[str(node)])
+            except KeyError:
+                pass
+        self.graph.add_weighted_edges_from(edgelist)
 
     def sendall(self):
         """All nodes send at same time."""
@@ -696,7 +683,7 @@ class Simulator:
                   'randconf': self.randcof, 'folder': self.folder, 'maxduration': self.maxduration,
                   'randomseed': self.random, 'sourceshift': self.sourceshift, 'newshift': self.newshift,
                   'david': self.david, 'resilience': self.resilience, 'path': list(self.dijkstra),
-                  'mcut': list(self.mcut)}
+                  'mcut': list(self.mcut), 'optimal': self.optimal}
         with open('{}/config.json'.format(self.folder), 'w') as file:
             json.dump(config, file)
         for kind in ['overhearing', 'real']:
@@ -731,6 +718,9 @@ class Simulator:
         if self.newshift:
             with open('{}/AANS.SS'.format(self.folder), 'w') as file:
                 file.write('NS')
+        if self.optimal:
+            with open('{}/AAOPT.SS'.format(self.folder), 'w') as file:
+                file.write('OPT')
         if self.david:
             with open('{}/AADAVID.DAVID'.format(self.folder), 'w') as file:
                 file.write('DAVID')

@@ -68,6 +68,10 @@ def getairtime(mainfolder=None, folders=None, plotfail='all'):
             if 'MOREresilience' not in incdicts.keys():
                 incdicts['MOREresilience'] = {}
             incdicts['MOREresilience'][folder] = airtime
+        elif config['optimal']:
+            if 'Optimal' not in incdicts.keys():
+                incdicts['Optimal'] = {}
+            incdicts['MOREresilience'][folder] = airtime
         else:
             if 'MORE' not in incdicts.keys():
                 incdicts['MORE'] = {}
@@ -146,6 +150,12 @@ def getairtimemode(mainfolder=None, folders=None, mode='perhop', plotfail='all')
             if ident not in incdicts['MOREresilience'].keys():
                 incdicts['MOREresilience'][ident] = {}
             incdicts['MOREresilience'][ident][folder] = airtime
+        elif config['optimal']:
+            if 'Optimal' not in incdicts.keys():
+                incdicts['Optimal'] = {}
+            if ident not in incdicts['Optimal'].keys():
+                incdicts['Optimal'][ident] = {}
+            incdicts['Optimal'][ident][folder] = airtime
         else:
             if 'MORE' not in incdicts.keys():
                 incdicts['MORE'] = {}
@@ -212,6 +222,10 @@ def getfailhist(mainfolder=None, folders=None, plotfail='all'):
             if 'MOREresilience' not in incdicts.keys():
                 incdicts['MOREresilience'] = {}
             incdicts['MOREresilience'][folder] = {key: value[0] for key, value in failhist.items()}
+        elif config['optimal']:
+            if 'Optimal' not in incdicts.keys():
+                incdicts['Optimal'] = {}
+            incdicts['Optimal'][folder] = {key: value[0] for key, value in failhist.items()}
         else:
             if 'MORE' not in incdicts.keys():
                 incdicts['MORE'] = {}
@@ -290,6 +304,12 @@ def getfailhistmode(mainfolder=None, folders=None, mode='perhop', plotfail='all'
             if ident not in incdicts['MOREresilience'].keys():
                 incdicts['MOREresilience'][ident] = {}
             incdicts['MOREresilience'][ident][folder] = {key: value[0] for key, value in failhist.items()}
+        elif config['optimal']:
+            if 'Optimal' not in incdicts.keys():
+                incdicts['Optimal'] = {}
+            if ident not in incdicts['Optimal'].keys():
+                incdicts['Optimal'][ident] = {}
+            incdicts['Optimal'][ident][folder] = {key: value[0] for key, value in failhist.items()}
         else:
             if 'MORE' not in incdicts.keys():
                 incdicts['MORE'] = {}
@@ -359,13 +379,14 @@ def getopt(mainfolder=None, folders=None, plotfail='all'):
             if 'MOREresilience' not in incdicts.keys():
                 incdicts['MOREresilience'] = {}
             incdicts['MOREresilience'][folder] = airtime
+        elif config['optimal']:
+            if 'Optimal' not in incdicts.keys():
+                incdicts['Optimal'] = {}
+            incdicts['Optimal'][folder] = airtime
         else:
             if 'MORE' not in incdicts.keys():
                 incdicts['MORE'] = {}
             incdicts['MORE'][folder] = airtime
-        if 'Optimal' not in incdicts.keys():
-            incdicts['Optimal'] = {}
-        incdicts['Optimal'][folder] = eotx
     plots = {}
     for protocol, dic in incdicts.items():
         plots[protocol] = {}
@@ -374,17 +395,10 @@ def getopt(mainfolder=None, folders=None, plotfail='all'):
                 if plotfail != 'all' and fail != plotfail:
                     continue
                 for node, airtime in nodes.items():
-                    if isinstance(airtime, float):
-                        if airtime != float('inf') and node != 'D':
-                            value = airtime
-                        else:
-                            continue
-                    else:
-                        value = len(airtime) / globconfig['coding']
                     if node not in plots[protocol].keys():
-                        plots[protocol][node] = [value]
+                        plots[protocol][node] = [len(airtime) / globconfig['coding']]
                     else:
-                        plots[protocol][node].append(value)
+                        plots[protocol][node].append(len(airtime) / globconfig['coding'])
     plotlist = {}
     for protocol in sorted(plots.keys()):
         plotlist[protocol] = {}
@@ -473,6 +487,10 @@ def parseaircdf(mainfolder, folders, mode='regular', plotfail='all'):
                 if 'MOREresilience' not in incdicts.keys():
                     incdicts['MOREresilience'] = {}
                 incdicts['MOREresilience'][folder] = airtime
+            elif config['optimal']:
+                if 'Optimal' not in incdicts.keys():
+                    incdicts['Optimal'] = {}
+                incdicts['Optimal'][folder] = airtime
             else:
                 if 'MORE' not in incdicts.keys():
                     incdicts['MORE'] = {}
@@ -560,6 +578,10 @@ def parsefailcdf(mainfolder, folders, mode='regular', plotfail='all'):
                 if 'MOREresilience' not in incdicts.keys():
                     incdicts['MOREresilience'] = {}
                 incdicts['MOREresilience'][folder] = {key: value[0] for key, value in failhist.items()}
+            elif config['optimal']:
+                if 'Optimal' not in incdicts.keys():
+                    incdicts['Optimal'] = {}
+                incdicts['Optimal'][folder] = {key: value[0] for key, value in failhist.items()}
             else:
                 if 'MORE' not in incdicts.keys():
                     incdicts['MORE'] = {}
@@ -650,6 +672,10 @@ def parsetrash(mainfolder, folders, mode='real'):
                 if 'MOREresilience' not in incdicts.keys():
                     incdicts['MOREresilience'] = {}
                 incdicts['MOREresilience'][folder] = trash
+            elif config['optimal']:
+                if 'Optimal' not in incdicts.keys():
+                    incdicts['Optimal'] = {}
+                incdicts['Optimal'][folder] = trash
             else:
                 if 'MORE' not in incdicts.keys():
                     incdicts['MORE'] = {}
@@ -679,10 +705,16 @@ def readairtime(folder):
     airtime, config, failhist = None, None, None
     if os.path.exists('{}/airtime.json'.format(folder)):
         with open('{}/airtime.json'.format(folder)) as file:
-            airtime = json.loads(file.read())
+            try:
+                airtime = json.loads(file.read())
+            except json.decoder.JSONDecodeError:
+                pass
     if os.path.exists('{}/config.json'.format(folder)):
         with open('{}/config.json'.format(folder)) as file:
-            config = json.loads(file.read())
+            try:
+                config = json.loads(file.read())
+            except json.decoder.JSONDecodeError:
+                pass
     return airtime, config
 
 
@@ -691,17 +723,27 @@ def readeotx(folder):
     eotx = None
     if os.path.exists('{}/eotx.json'.format(folder)):
         with open('{}/eotx.json'.format(folder)) as file:
-            eotx = json.loads(file.read())
+            try:
+                eotx = json.loads(file.read())
+            except json.decoder.JSONDecodeError:
+                pass
     return eotx
 
 
 def readfailhist(folder):
     """Read logs from folder."""
+    failhist, config = None, None
     if os.path.exists('{}/failhist.json'.format(folder)) and os.path.exists('{}/config.json'.format(folder)):
         with open('{}/failhist.json'.format(folder)) as file:
-            failhist = json.loads(file.read())
+            try:
+                failhist = json.loads(file.read())
+            except json.decoder.JSONDecodeError:
+                pass
         with open('{}/config.json'.format(folder)) as file:
-            config = json.loads(file.read())
+            try:
+                config = json.loads(file.read())
+            except json.decoder.JSONDecodeError:
+                pass
         return failhist, config
     raise FileNotFoundError
 
@@ -711,16 +753,28 @@ def readgraph(folder):
     graph, path, eotx, failhist = None, None, None, None
     if os.path.exists('{}/path.json'.format(folder)):
         with open('{}/graph.json'.format(folder)) as file:
-            graph = json.loads(file.read())
+            try:
+                graph = json.loads(file.read())
+            except json.decoder.JSONDecodeError:
+                pass
     if os.path.exists('{}/failhist.json'.format(folder)):
         with open('{}/path.json'.format(folder)) as file:
-            path = json.loads(file.read())
+            try:
+                path = json.loads(file.read())
+            except json.decoder.JSONDecodeError:
+                pass
     if os.path.exists('{}/eotx.json'.format(folder)):
         with open('{}/eotx.json'.format(folder)) as file:
-            eotx = json.loads(file.read())
+            try:
+                eotx = json.loads(file.read())
+            except json.decoder.JSONDecodeError:
+                pass
     if os.path.exists('{}/failhist.json'.format(folder)):
         with open('{}/failhist.json'.format(folder)) as file:
-            failhist = json.loads(file.read())
+            try:
+                failhist = json.loads(file.read())
+            except json.decoder.JSONDecodeError:
+                pass
     return graph, path, eotx, failhist
 
 
@@ -729,10 +783,16 @@ def readtrash(folder, mode='real'):
     trash, config = None, None
     if os.path.exists('{}/{}trash.json'.format(folder, mode)):
         with open('{}/{}trash.json'.format(folder, mode)) as file:
-            trash = json.loads(file.read())
+            try:
+                trash = json.loads(file.read())
+            except json.decoder.JSONDecodeError:
+                pass
     if os.path.exists('{}/config.json'.format(folder, mode)):
         with open('{}/config.json'.format(folder, mode)) as file:
-            config = json.loads(file.read())
+            try:
+                config = json.loads(file.read())
+            except json.decoder.JSONDecodeError:
+                pass
     if trash is None or config is None:
         raise FileNotFoundError
     else:
@@ -956,20 +1016,19 @@ def plotgraph(folders=None):
     p.figure(figsize=(6.18, 6.18))  # Plot graph \textwidth
     # p.figure(figsize=(3, 3))          # Plot graph to use in subfigure 0.5 * \textwidth
     for folder in folders:
-        configlist = []
         graph, path, eotx, failhist = readgraph(folder)
         if graph is None or path is None or eotx is None or failhist is None:
             logging.warning('Can not read log at {}! Continue'.format(folder))
             continue
         pos = {node: [graph['nodes'][node]['x'], graph['nodes'][node]['y']] for node in graph['nodes']}
-        for edge in graph['links']:
-            configlist.append((edge['nodes'][0], edge['nodes'][1], edge['loss']))
+        configlist = [(edge['nodes'][0], edge['nodes'][1], edge['loss']) for edge in graph['links']]
         net = nx.Graph()
         net.add_weighted_edges_from(configlist)
-        # for node in net.nodes:        # Do not plot EOTX as its confusing for audience
-        #    net.nodes[node]['EOTX'] = eotx[node][0]
         prevfail = None
         for fail in failhist.keys():
+            if fail in eotx.keys():
+                for node in net.nodes:  # Update EOTX to the one of the current failure if there is such
+                    net.nodes[node]['EOTX'] = eotx[fail][node]
             if fail != 'None':
                 if len(fail) == 2:
                     if prevfail is not None:
@@ -1155,9 +1214,9 @@ if __name__ == '__main__':
     logging.basicConfig(filename='plotlog.log', level=logging.DEBUG, filemode='w')
     now = datetime.datetime.now()
     # date = str(int(str(now.year) + str(now.month) + str(now.day)))
-    date = '../20181220'
+    date = '../20181225'
     folderlist = []
-    for i in range(3):
+    for i in range(12):
         folderlst = []
         # folderlist.append('{}/graph{}/test'.format(date, i))
         folderlist.extend(['{}/graph{}/test{}'.format(date, i, j) for j in range(100)])
@@ -1173,9 +1232,9 @@ if __name__ == '__main__':
     plotopt(date, plotfail='None')
     # plotaircdf(date, plotfail='None')
     # plotlatcdf(date, plotfail='None')
-    # plotgaincdf(date)
-    # plotperhop(date)
-    # plotperhop(date, kind='mcut')
+    plotgaincdf(date)
+    plotperhop(date)
+    plotperhop(date, kind='mcut')
     # plotqq(['../expdav', '../expnodav'])
-    # plottrash(date)
+    plottrash(date)
     # plotgraph(folders=folderlist)

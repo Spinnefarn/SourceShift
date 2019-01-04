@@ -26,7 +26,7 @@ def parse_args():
                         dest='coding',
                         type=int,
                         help='Batch size for coded packets. Default None(without coding)',
-                        default=42)
+                        default=16)
     parser.add_argument('-f', '--fieldsize',
                         dest='fieldsize',
                         type=int,
@@ -52,6 +52,16 @@ def parse_args():
                         dest='sourceshift',
                         type=bool,
                         help='Enable source shifting',
+                        default=False)
+    parser.add_argument('-op', '--optimal',
+                        dest='optimal',
+                        type=bool,
+                        help='Use MORE but recalculate in case of failure.',
+                        default=False)
+    parser.add_argument('-ns', '--newshift',
+                        dest='newshift',
+                        type=bool,
+                        help='Enable new shifting, means enhanced version of source shift',
                         default=False)
     parser.add_argument('-fn', '--failnode',
                         dest='failnode',
@@ -108,7 +118,7 @@ if __name__ == '__main__':
                     sendall=args.sendam, own=args.own, edgefail=args.failedge, nodefail=args.failnode,
                     allfail=args.failall, randcof=args.randomnodes, folder=args.folder,
                     maxduration=args.maxduration, randomseed=randomnumber, sourceshift=args.sourceshift,
-                    david=args.david, hops=5)
+                    newshift=args.newshift, david=args.david, hops=5, optimal=args.optimal)
     starttime = time.time()
     complete = False
     while not complete:

@@ -27,7 +27,7 @@ class Node:
             np.random.seed(1)
         else:
             np.random.seed(random)
-        symbol_size = 160
+        symbol_size = 16
         self.coder = None
         if name == 'S':
             self.factory = kodo.RLNCEncoderFactory(kodo.field.binary, coding, symbol_size)
@@ -192,6 +192,12 @@ class Node:
     def reducecredit(self):
         """Reduce tx credit."""
         self.creditcounter -= 1
+
+    def resetcredit(self):
+        """Reset credit."""
+        if self.name != 'S':
+            self.credit = 0
+            self.creditcounter = 0
 
     def setcredit(self, credit):
         """Set custom tx credit. In case of MOREresilience use the higher credit."""
