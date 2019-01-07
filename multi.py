@@ -198,10 +198,10 @@ if __name__ == '__main__':
         filemode='w')
     now = datetime.datetime.now()
     date = str(now.year) + str(now.month) + str(now.day)
-    # date = '../exp'
+    #date = '../expnodav'
     plot, plotconf = None, None
     processes = []
-    for i in range(10):
+    for i in range(1):
         logging.info('Created new graph at graph{}'.format(i))
         confdict = {'json': args.json, 'randconf': args.amount, 'coding': args.coding, 'fieldsize': args.fieldsize,
                     'sendam': args.sendam, 'own': args.own, 'failedge': args.failedge, 'failnode': args.failnode,
@@ -229,7 +229,7 @@ if __name__ == '__main__':
             for element in folderlist:
                 cleanfolder('{}/graph{}/{}'.format(date, i, element))
                 confdict['json'] = '{}/graph{}/test/graph.json'.format(date, i)
-                # confdict['json'] = 'demograph.json'
+                confdict['json'] = 'demograph2.json'
                 confdict['folder'] = '{}/graph{}/{}'.format(date, i, element)
                 confdict = setmode(confdict, element[-1])
                 confdict['maxduration'] = 200 * failhist['None'][0]

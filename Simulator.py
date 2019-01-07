@@ -25,7 +25,7 @@ class Simulator:
     """Round based simulator to simulate traffic in meshed network."""
     def __init__(self, jsonfile=None, coding=None, fieldsize=2, sendall=0, own=True, edgefail=None, nodefail=None,
                  allfail=False, randcof=(10, 0.5), folder='.', maxduration=0, randomseed=None, sourceshift=False,
-                 newshift=False, david=False, edgefailprob=0.1, hops=0, optimal=False):
+                 newshift=False, david=False, edgefailprob=0.1, hops=0, optimal=False, trash=False):
         self.airtime = {'None': {}}
         self.sourceshift = sourceshift
         self.newshift = newshift
@@ -40,6 +40,7 @@ class Simulator:
         self.maxduration = maxduration
         self.eotxdict = {}
         self.config = {}
+        self.trash = trash      # Log trash?
         self.graph = None
         self.folder = folder
         self.prevfail = None
@@ -82,8 +83,8 @@ class Simulator:
                                                 prevdeotx=node.getdeotx(), special=special, ts=self.timestamp)
                                 ident = self.getidentifier()
                                 if str(node) + neighbor not in self.path[ident]:
-                                    self.path[ident][(str(node) + neighbor)] = []
-                                self.path[ident][(str(node) + neighbor)].append(self.timestamp)
+                                    self.path[ident][(str(node) + neighbor)] = 0
+                                self.path[ident][(str(node) + neighbor)] += 1
                             break
 
     def calcairtime(self):
@@ -519,8 +520,8 @@ class Simulator:
             self.calceotx()
             credit = self.calc_tx_credit()
             logging.info('Created network from JSON successfully!')
-        self.nodes = [components.Node(name=name, coding=self.coding, fieldsize=self.fieldsize, random=self.random)
-                      for name in self.graph.nodes]
+        self.nodes = [components.Node(name=name, coding=self.coding, fieldsize=self.fieldsize, random=self.random,
+                                      trash=self.trash) for name in self.graph.nodes]
         for node in self.nodes:
             try:
                 node.seteotx(self.graph.nodes[str(node)]['EOTX'])
@@ -624,9 +625,9 @@ class Simulator:
                     node.reducecredit()
                     ident = self.getidentifier()
                     if str(node) in self.airtime[ident].keys():
-                        self.airtime[ident][str(node)].append(self.timestamp)
+                        self.airtime[ident][str(node)] += 1
                     else:
-                        self.airtime[ident][str(node)] = [self.timestamp]
+                        self.airtime[ident][str(node)] = 1
 
     def sendsel(self):
         """Just the selected amount of nodes send at one timeslot."""
@@ -641,9 +642,9 @@ class Simulator:
                 goodnodes[k].reducecredit()
                 ident = self.getidentifier()
                 if str(goodnodes[k]) in self.airtime[ident].keys():
-                    self.airtime[ident][str(goodnodes[k])].append(self.timestamp)
+                    self.airtime[ident][str(goodnodes[k])] += 1
                 else:
-                    self.airtime[ident][str(goodnodes[k])] = [self.timestamp]
+                    self.airtime[ident][str(goodnodes[k])] = 1
             del goodnodes[k]
 
     def update(self):
@@ -662,7 +663,7 @@ class Simulator:
                 if node.isdone() and str(node) not in self.donedict and self.batch == node.getbatch():
                     logging.debug('Node {} done at timestep {}'.format(str(node), self.timestamp))
                     self.donedict[str(node)] = self.timestamp
-                self.ranklist[str(node)].append(node.getrank())
+                # self.ranklist[str(node)].append(node.getrank())       # Just for debugging
             self.timestamp += 1
             if not self.checkduration():
                 return True
@@ -676,8 +677,8 @@ class Simulator:
             json.dump(self.airtime, file)
         with open('{}/path.json'.format(self.folder), 'w') as file:
             json.dump(self.path, file)
-        with open('{}/ranklist.json'.format(self.folder), 'w') as file:
-            json.dump(self.ranklist, file)
+        # with open('{}/ranklist.json'.format(self.folder), 'w') as file:
+        #    json.dump(self.ranklist, file)     # Just for debugging
         config = {'json': self.json, 'coding': self.coding, 'fieldsize': self.fieldsize, 'sendam': self.sendam,
                   'own': self.own, 'failedge': self.edgefail, 'failnode': self.nodefail, 'failall': self.allfail,
                   'randconf': self.randcof, 'folder': self.folder, 'maxduration': self.maxduration,
@@ -686,17 +687,18 @@ class Simulator:
                   'mcut': list(self.mcut), 'optimal': self.optimal}
         with open('{}/config.json'.format(self.folder), 'w') as file:
             json.dump(config, file)
-        for kind in ['overhearing', 'real']:
-            trashdict = {}
-            for node in self.nodes:
-                if str(node) != 'S':
-                    if kind == 'real':
-                        trash = node.getrealtrash(self.timestamp)
-                    else:
-                        trash = node.gettrash(self.timestamp)
-                    trashdict[str(node)] = trash
-            with open('{}/{}trash.json'.format(self.folder, kind), 'w') as file:
-                json.dump(trashdict, file)
+        if self.trash:
+            for kind in ['overhearing', 'real']:
+                trashdict = {}
+                for node in self.nodes:
+                    if str(node) != 'S':
+                        if kind == 'real':
+                            trash = node.getrealtrash(self.timestamp)
+                        else:
+                            trash = node.gettrash(self.timestamp)
+                        trashdict[str(node)] = trash
+                with open('{}/{}trash.json'.format(self.folder, kind), 'w') as file:
+                    json.dump(trashdict, file)
         with open('{}/failhist.json'.format(self.folder), 'w') as file:
             json.dump(self.failhist, file)
         if isinstance(self.prevfail, tuple):        # Repair graph before writing it down

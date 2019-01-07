@@ -22,7 +22,7 @@ def makenice(trash, maxts):
 
 class Node:
     """Representation of a node on the network."""
-    def __init__(self, name='S', coding=None, fieldsize=1, random=None):
+    def __init__(self, name='S', coding=None, fieldsize=1, random=None, trash=False):
         if random is None:
             np.random.seed(1)
         else:
@@ -41,6 +41,7 @@ class Node:
         self.name = name
         self.fieldsize = 2 ** fieldsize
         self.incbuffer = []
+        self.trtrash = trash
         self.coding = coding
         self.batch = 0
         self.eotx = float('inf')
@@ -182,10 +183,11 @@ class Node:
                     self.complete = self.coder.is_complete()
                     if special and self.credit == 0:
                         self.creditcounter += 1
-                elif preveotx > self.eotx:
-                    self.realtrash.append(timestamp)
-                else:
-                    self.trash.append(timestamp)
+                elif self.trtrash:      # Just log trash if wished
+                    if preveotx > self.eotx:
+                        self.realtrash.append(timestamp)
+                    else:
+                        self.trash.append(timestamp)
             if preveotx > self.eotx or prevdeotx > self.deotx:
                 self.creditcounter += self.credit
 

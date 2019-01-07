@@ -396,9 +396,9 @@ def getopt(mainfolder=None, folders=None, plotfail='all'):
                     continue
                 for node, airtime in nodes.items():
                     if node not in plots[protocol].keys():
-                        plots[protocol][node] = [len(airtime) / globconfig['coding']]
+                        plots[protocol][node] = [airtime / globconfig['coding']]
                     else:
-                        plots[protocol][node].append(len(airtime) / globconfig['coding'])
+                        plots[protocol][node].append(airtime / globconfig['coding'])
     plotlist = {}
     for protocol in sorted(plots.keys()):
         plotlist[protocol] = {}
@@ -417,8 +417,7 @@ def parseairtime(dic, plotfail='all'):
         counter = []
         for folder in dic.keys():
             try:
-                counter.append(sum([len(dic[folder][fail][node])
-                                    for node in dic[folder][fail].keys()]))
+                counter.append(sum([dic[folder][fail][node] for node in dic[folder][fail].keys()]))
             except KeyError:
                 pass
         plot[fail] = statistics.mean(counter)
@@ -512,7 +511,7 @@ def parseaircdf(mainfolder, folders, mode='regular', plotfail='all'):
             counter = []
             for folder in incdicts[protocol].keys():
                 try:
-                    counter.append(sum([len(incdicts[protocol][folder][fail][node])
+                    counter.append(sum([incdicts[protocol][folder][fail][node]
                                         for node in incdicts[protocol][folder][fail].keys()]))
                 except KeyError:
                     pass
@@ -1214,7 +1213,7 @@ if __name__ == '__main__':
     logging.basicConfig(filename='plotlog.log', level=logging.DEBUG, filemode='w')
     now = datetime.datetime.now()
     # date = str(int(str(now.year) + str(now.month) + str(now.day)))
-    date = '../20181225'
+    date = '../expnodav'
     folderlist = []
     for i in range(12):
         folderlst = []
@@ -1228,13 +1227,13 @@ if __name__ == '__main__':
         # plotairtime(mfolder, folderlst)
         # plotgain(mfolder, folderlst)
         # plotfailhist(mfolder, folderlst)
-    plotopt(date)
-    plotopt(date, plotfail='None')
-    # plotaircdf(date, plotfail='None')
-    # plotlatcdf(date, plotfail='None')
-    plotgaincdf(date)
-    plotperhop(date)
-    plotperhop(date, kind='mcut')
+    #plotopt(date)
+    #plotopt(date, plotfail='None')
+    #plotaircdf(date, plotfail='None')
+    #plotlatcdf(date, plotfail='None')
+    #plotgaincdf(date)
+    #plotperhop(date)
+    #plotperhop(date, kind='mcut')
     # plotqq(['../expdav', '../expnodav'])
-    plottrash(date)
-    # plotgraph(folders=folderlist)
+    #plottrash(date)
+    plotgraph(folders=folderlist)
