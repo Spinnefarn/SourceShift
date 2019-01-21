@@ -198,10 +198,14 @@ if __name__ == '__main__':
         filemode='w')
     now = datetime.datetime.now()
     date = str(now.year) + str(now.month) + str(now.day)
+<<<<<<< HEAD
     # date = '../expnodav'
+=======
+    #date = '../expnodav'
+>>>>>>> 21b39bcd918a2d43130927f63c10f05ab1e1dcb4
     plot, plotconf = None, None
     processes = []
-    for i in range(100):
+    for i in range(1):
         logging.info('Created new graph at graph{}'.format(i))
         confdict = {'json': args.json, 'randconf': args.amount, 'coding': args.coding, 'fieldsize': args.fieldsize,
                     'sendam': args.sendam, 'own': args.own, 'failedge': args.failedge, 'failnode': args.failnode,

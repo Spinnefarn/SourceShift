@@ -736,7 +736,7 @@ class Simulator:
                 if node.isdone() and str(node) not in self.donedict and self.batch == node.getbatch():
                     logging.debug('Node {} done at timestep {}'.format(str(node), self.timestamp))
                     self.donedict[str(node)] = self.timestamp
-                self.ranklist[str(node)].append(node.getrank())       # Just for debugging
+                # self.ranklist[str(node)].append(node.getrank())       # Just for debugging
             self.timestamp += 1
             if not self.checkduration():
                 return True

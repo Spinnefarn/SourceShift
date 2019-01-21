@@ -1226,6 +1226,7 @@ if __name__ == '__main__':
         # plotairtime(mfolder, folderlst)
         # plotgain(mfolder, folderlst)
         # plotfailhist(mfolder, folderlst)
+<<<<<<< HEAD
     plotopt(date)
     plotopt(date, plotfail='None')
     plotaircdf(date, plotfail='None')
@@ -1235,4 +1236,15 @@ if __name__ == '__main__':
     plotperhop(date, kind='mcut')
     # plotqq(['../expdav', '../expnodav'])
     # plottrash(date)
+=======
+    #plotopt(date)
+    #plotopt(date, plotfail='None')
+    #plotaircdf(date, plotfail='None')
+    #plotlatcdf(date, plotfail='None')
+    #plotgaincdf(date)
+    #plotperhop(date)
+    #plotperhop(date, kind='mcut')
+    # plotqq(['../expdav', '../expnodav'])
+    #plottrash(date)
+>>>>>>> 21b39bcd918a2d43130927f63c10f05ab1e1dcb4
     plotgraph(folders=folderlist)
