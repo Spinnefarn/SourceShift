@@ -71,7 +71,11 @@ def getairtime(mainfolder=None, folders=None, plotfail='all'):
         elif config['optimal']:
             if 'Optimal' not in incdicts.keys():
                 incdicts['Optimal'] = {}
-            incdicts['MOREresilience'][folder] = airtime
+            incdicts['Optimal'][folder] = airtime
+        elif config['ANChOR']:
+            if 'ANChOR' not in incdicts.keys():
+                incdicts['ANChOR'] = {}
+            incdicts['ANChOR'][folder] = airtime
         else:
             if 'MORE' not in incdicts.keys():
                 incdicts['MORE'] = {}
@@ -156,6 +160,12 @@ def getairtimemode(mainfolder=None, folders=None, mode='perhop', plotfail='all')
             if ident not in incdicts['Optimal'].keys():
                 incdicts['Optimal'][ident] = {}
             incdicts['Optimal'][ident][folder] = airtime
+        elif config['ANChOR']:
+            if 'ANChOR' not in incdicts.keys():
+                incdicts['ANChOR'] = {}
+            if ident not in incdicts['ANChOR'].keys():
+                incdicts['ANChOR'][ident] = {}
+            incdicts['ANChOR'][ident][folder] = airtime
         else:
             if 'MORE' not in incdicts.keys():
                 incdicts['MORE'] = {}
@@ -226,6 +236,10 @@ def getfailhist(mainfolder=None, folders=None, plotfail='all'):
             if 'Optimal' not in incdicts.keys():
                 incdicts['Optimal'] = {}
             incdicts['Optimal'][folder] = {key: value[0] for key, value in failhist.items()}
+        elif config['ANChOR']:
+            if 'ANChOR' not in incdicts.keys():
+                incdicts['ANChOR'] = {}
+            incdicts['ANChOR'][folder] = {key: value[0] for key, value in failhist.items()}
         else:
             if 'MORE' not in incdicts.keys():
                 incdicts['MORE'] = {}
@@ -310,6 +324,12 @@ def getfailhistmode(mainfolder=None, folders=None, mode='perhop', plotfail='all'
             if ident not in incdicts['Optimal'].keys():
                 incdicts['Optimal'][ident] = {}
             incdicts['Optimal'][ident][folder] = {key: value[0] for key, value in failhist.items()}
+        elif config['ANChOR']:
+            if 'ANChOR' not in incdicts.keys():
+                incdicts['ANChOR'] = {}
+            if ident not in incdicts['ANChOR'].keys():
+                incdicts['ANChOR'][ident] = {}
+            incdicts['ANChOR'][ident][folder] = {key: value[0] for key, value in failhist.items()}
         else:
             if 'MORE' not in incdicts.keys():
                 incdicts['MORE'] = {}
@@ -383,6 +403,10 @@ def getopt(mainfolder=None, folders=None, plotfail='all'):
             if 'Optimal' not in incdicts.keys():
                 incdicts['Optimal'] = {}
             incdicts['Optimal'][folder] = airtime
+        elif config['ANChOR']:
+            if 'ANChor' not in incdicts.keys():
+                incdicts['ANChOR'] = {}
+            incdicts['ANChOR'][folder] = airtime
         else:
             if 'MORE' not in incdicts.keys():
                 incdicts['MORE'] = {}
@@ -490,6 +514,10 @@ def parseaircdf(mainfolder, folders, mode='regular', plotfail='all'):
                 if 'Optimal' not in incdicts.keys():
                     incdicts['Optimal'] = {}
                 incdicts['Optimal'][folder] = airtime
+            elif config['ANChOR']:
+                if 'ANChOR' not in incdicts.keys():
+                    incdicts['ANChOR'] = {}
+                incdicts['ANChOR'][folder] = airtime
             else:
                 if 'MORE' not in incdicts.keys():
                     incdicts['MORE'] = {}
@@ -581,6 +609,10 @@ def parsefailcdf(mainfolder, folders, mode='regular', plotfail='all'):
                 if 'Optimal' not in incdicts.keys():
                     incdicts['Optimal'] = {}
                 incdicts['Optimal'][folder] = {key: value[0] for key, value in failhist.items()}
+            elif config['ANChOR']:
+                if 'ANChOR' not in incdicts.keys():
+                    incdicts['ANChOR'] = {}
+                incdicts['ANChOR'][folder] = {key: value[0] for key, value in failhist.items()}
             else:
                 if 'MORE' not in incdicts.keys():
                     incdicts['MORE'] = {}
@@ -675,6 +707,10 @@ def parsetrash(mainfolder, folders, mode='real'):
                 if 'Optimal' not in incdicts.keys():
                     incdicts['Optimal'] = {}
                 incdicts['Optimal'][folder] = trash
+            elif config['ANChOR']:
+                if 'ANChOR' not in incdicts.keys():
+                    incdicts['ANChOR'] = {}
+                incdicts['ANChOR'][folder] = trash
             else:
                 if 'MORE' not in incdicts.keys():
                     incdicts['MORE'] = {}
@@ -1226,25 +1262,13 @@ if __name__ == '__main__':
         # plotairtime(mfolder, folderlst)
         # plotgain(mfolder, folderlst)
         # plotfailhist(mfolder, folderlst)
-<<<<<<< HEAD
-    plotopt(date)
-    plotopt(date, plotfail='None')
-    plotaircdf(date, plotfail='None')
-    plotlatcdf(date, plotfail='None')
-    plotgaincdf(date)
-    plotperhop(date)
-    plotperhop(date, kind='mcut')
+    # plotopt(date)
+    # plotopt(date, plotfail='None')
+    # plotaircdf(date, plotfail='None')
+    # plotlatcdf(date, plotfail='None')
+    # plotgaincdf(date)
+    # plotperhop(date)
+    # plotperhop(date, kind='mcut')
     # plotqq(['../expdav', '../expnodav'])
     # plottrash(date)
-=======
-    #plotopt(date)
-    #plotopt(date, plotfail='None')
-    #plotaircdf(date, plotfail='None')
-    #plotlatcdf(date, plotfail='None')
-    #plotgaincdf(date)
-    #plotperhop(date)
-    #plotperhop(date, kind='mcut')
-    # plotqq(['../expdav', '../expnodav'])
-    #plottrash(date)
->>>>>>> 21b39bcd918a2d43130927f63c10f05ab1e1dcb4
     plotgraph(folders=folderlist)

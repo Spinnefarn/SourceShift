@@ -75,6 +75,7 @@ def parse_args():
                         default=None)
     parser.add_argument('-fa', '--failall',
                         dest='failall',
+                        type=bool,
                         help='Everything should fail(just one by time.',
                         default=False)
     parser.add_argument('-F', '--folder',

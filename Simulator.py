@@ -119,7 +119,7 @@ class Simulator:
                         a = 1.
                         for n in self.graph.nodes[node]['ForwarderList']:
                             try:
-                                a *= self.graph.edges[n, node]['weight']
+                                a *= (1 - self.graph.edges[n, node]['weight'])
                             except KeyError:
                                 pass
                         a = 1 - a
@@ -133,14 +133,14 @@ class Simulator:
                                 for m in self.graph.nodes[node]['ForwarderList']:
                                     if m != 'D' and self.graph.nodes[n]['Priority'] < self.graph.nodes[m]['Priority']:
                                         try:
-                                            c *= self.graph.edges[n, m]['weight']
+                                            c *= (1 - self.graph.edges[n, m]['weight'])
                                         except KeyError:
                                             continue
-                                c *= 1 / self.graph.nodes[node]['Priority']
+                                c /= self.graph.nodes[n]['Priority']
                                 r += c
                         b = 1 + r
                         self.graph.nodes[node]['Priority'] = a / b
-                        self.graph.nodes[node]['codingRate'] = a
+                        self.graph.nodes[node]['codingRate'] = 1 / a
             currdict = {node: self.graph.nodes[node]['Priority'] for node in self.graph.nodes}
 
     def calcdeotx(self):
@@ -736,7 +736,7 @@ class Simulator:
                 if node.isdone() and str(node) not in self.donedict and self.batch == node.getbatch():
                     logging.debug('Node {} done at timestep {}'.format(str(node), self.timestamp))
                     self.donedict[str(node)] = self.timestamp
-                # self.ranklist[str(node)].append(node.getrank())       # Just for debugging
+                self.ranklist[str(node)].append(node.getrank())       # Just for debugging
             self.timestamp += 1
             if not self.checkduration():
                 return True
@@ -757,7 +757,7 @@ class Simulator:
                   'randconf': self.randcof, 'folder': self.folder, 'maxduration': self.maxduration,
                   'randomseed': self.random, 'sourceshift': self.sourceshift, 'newshift': self.newshift,
                   'david': self.david, 'resilience': self.resilience, 'path': list(self.dijkstra),
-                  'mcut': list(self.mcut), 'optimal': self.optimal}
+                  'mcut': list(self.mcut), 'optimal': self.optimal, 'ANChOR': self.anchor}
         with open('{}/config.json'.format(self.folder), 'w') as file:
             json.dump(config, file, indent=4)
         if self.trash:
@@ -796,6 +796,9 @@ class Simulator:
         if self.optimal:
             with open('{}/AAOPT.SS'.format(self.folder), 'w') as file:
                 file.write('OPT')
+        if self.anchor:
+            with open('{}/AAANChOR.SS'.format(self.folder), 'w') as file:
+                file.write('ANChOR')
         if self.david:
             with open('{}/AADAVID.DAVID'.format(self.folder), 'w') as file:
                 file.write('DAVID')

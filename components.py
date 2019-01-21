@@ -186,11 +186,11 @@ class Node:
                     if special and self.credit == 0:
                         self.creditcounter += 1
                 elif self.trtrash:      # Just log trash if wished
-                    if preveotx > self.eotx:
+                    if preveotx > self.eotx or (self.priority != 0. and self.priority > preveotx):
                         self.realtrash.append(timestamp)
                     else:
                         self.trash.append(timestamp)
-            if preveotx > self.eotx or prevdeotx > self.deotx:
+            if preveotx > self.eotx or prevdeotx > self.deotx or (self.priority != 0. and self.priority > preveotx):
                 self.creditcounter += self.credit
 
     def reducecredit(self):

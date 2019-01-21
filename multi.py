@@ -32,6 +32,11 @@ def parse_args():
                         type=int,
                         help='Batch size for coded packets. Default None(without coding)',
                         default=42)
+    parser.add_argument('-a', '--anchor',
+                        dest='anchor',
+                        type=bool,
+                        help='Use anchor or MORE.',
+                        default=False)
     parser.add_argument('-f', '--fieldsize',
                         dest='fieldsize',
                         type=int,
@@ -108,7 +113,7 @@ def runsim(config):
                     nodefail=config['failnode'], allfail=config['failall'], randcof=config['randconf'],
                     folder=config['folder'], maxduration=config['maxduration'], randomseed=randomseed,
                     sourceshift=config['sourceshift'], newshift=config['newshift'], david=config['david'],
-                    hops=config['hops'], optimal=config['optimal'])
+                    hops=config['hops'], optimal=config['optimal'], anchor=config['anchor'])
     logging.info('Start simulator {}'.format(config['folder']))
     starttime = time.time()
     complete = False
@@ -143,7 +148,7 @@ def cleanfolder(folder):
 
 def setmode(config, count):
     """Set config mode."""
-    mode = ['oss', 'o', 'ns', 'ss', 'davidss', 'david', 'm', 'opt']
+    mode = ['oss', 'o', 'ns', 'ss', 'davidss', 'david', 'm', 'opt', 'anchor']
     try:
         count = int(count) % len(mode)
     except (TypeError, ValueError):
@@ -166,6 +171,9 @@ def setmode(config, count):
         config['david'] = 1.0
     elif mode[count] == 'opt':
         config['optimal'] = True
+    elif mode[count] == 'anchor':
+        config['anchor'] = True
+    print(str(mode[count]))
     return config
 
 
@@ -184,12 +192,13 @@ def plotall(mfolder, counter, liste):
     # plotter.plotperhop(mfolder, kind='mcut')
     # plotter.plottrash(mfolder)
     plotter.plotgraph(['{0}/graph{1}/test'.format(mfolder, counter)])  # Just plot each graph once
-    plotter.plotgraph(['{0}/graph{1}/{2}'.format(mfolder, counter, folder) for folder in liste[:8]])
+    # plotter.plotgraph(['{0}/graph{1}/{2}'.format(mfolder, counter, folder) for folder in liste[:8]])
 
 
 if __name__ == '__main__':
     args = parse_args()
-    os.remove('main.log')
+    if os.path.exists('main.log'):
+        os.remove('main.log')
     llevel = logging.INFO
     logging.basicConfig(
         filename='main.log',
@@ -198,20 +207,16 @@ if __name__ == '__main__':
         filemode='w')
     now = datetime.datetime.now()
     date = str(now.year) + str(now.month) + str(now.day)
-<<<<<<< HEAD
     # date = '../expnodav'
-=======
-    #date = '../expnodav'
->>>>>>> 21b39bcd918a2d43130927f63c10f05ab1e1dcb4
     plot, plotconf = None, None
     processes = []
-    for i in range(1):
+    for i in range(1000):
         logging.info('Created new graph at graph{}'.format(i))
         confdict = {'json': args.json, 'randconf': args.amount, 'coding': args.coding, 'fieldsize': args.fieldsize,
                     'sendam': args.sendam, 'own': args.own, 'failedge': args.failedge, 'failnode': args.failnode,
                     'failall': False, 'folder': '{}/graph{}/test'.format(date, i), 'maxduration': args.maxduration,
                     'random': args.random, 'sourceshift': args.sourceshift, 'newshift': args.newshift,
-                    'david': 0.0, 'hops': 0, 'optimal': args.optimal}
+                    'david': 0.0, 'hops': 0, 'optimal': args.optimal, 'anchor': args.anchor}
         cleanfolder(confdict['folder'])
         launchsubp(confdict)
         while not os.path.exists(confdict['folder'] + '/graph.json'):
@@ -226,9 +231,10 @@ if __name__ == '__main__':
         confdict = {'json': args.json, 'randconf': args.amount, 'coding': args.coding, 'fieldsize': args.fieldsize,
                     'sendam': args.sendam, 'own': args.own, 'failedge': args.failedge, 'failnode': args.failnode,
                     'failall': True, 'folder': args.folder, 'maxduration': args.maxduration,
-                    'random': randomnumber, 'sourceshift': args.sourceshift, 'hops': 0}
+                    'random': randomnumber, 'sourceshift': args.sourceshift, 'hops': 0, 'optimal': args.optimal,
+                    'anchor': args.anchor}
         logging.info('Randomseed = ' + str(randomnumber))
-        folderlist = ['test{}'.format(i) for i in range(12)]     # Should be much bigger than number of available cores
+        folderlist = ['test{}'.format(i) for i in range(60)]     # Should be much bigger than number of available cores
         try:
             for element in folderlist:
                 cleanfolder('{}/graph{}/{}'.format(date, i, element))
