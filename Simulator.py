@@ -101,11 +101,11 @@ class Simulator:
         """Calculate ANCHORS metric."""
         for node in self.graph.nodes:
             if node == 'D':
-                self.graph.nodes[node]['priority'] = 1.
+                self.graph.nodes[node]['Priority'] = 1.
             else:
-                self.graph.nodes[node]['priority'] = 1/len(self.graph.nodes)
+                self.graph.nodes[node]['Priority'] = 1/len(self.graph.nodes)
             self.graph.nodes[node]['ForwarderList'] = []
-        prevdict, currdict = {node: self.graph.nodes[node]['priority'] for node in self.graph.nodes}, {}
+        prevdict, currdict = {node: self.graph.nodes[node]['Priority'] for node in self.graph.nodes}, {}
         while prevdict != currdict:
             if currdict:
                 prevdict = currdict.copy()
@@ -113,7 +113,7 @@ class Simulator:
                 if node == 'D':
                     continue
                 for neighbor in self.graph.neighbors(node):
-                    if self.graph.nodes[neighbor]['priority'] > self.graph.nodes[node]['priority'] and \
+                    if self.graph.nodes[neighbor]['Priority'] > self.graph.nodes[node]['Priority'] and \
                             neighbor not in self.graph.nodes[node]['ForwarderList'] and neighbor != 'S':
                         self.graph.nodes[node]['ForwarderList'].append(neighbor)
                         a = 1.
@@ -131,17 +131,17 @@ class Simulator:
                                 except KeyError:
                                     continue
                                 for m in self.graph.nodes[node]['ForwarderList']:
-                                    if m != 'D' and self.graph.nodes[n]['priority'] < self.graph.nodes[m]['priority']:
+                                    if m != 'D' and self.graph.nodes[n]['Priority'] < self.graph.nodes[m]['Priority']:
                                         try:
                                             c *= self.graph.edges[n, m]['weight']
                                         except KeyError:
                                             continue
-                                c *= 1 / self.graph.nodes[node]['priority']
+                                c *= 1 / self.graph.nodes[node]['Priority']
                                 r += c
                         b = 1 + r
-                        self.graph.nodes[node]['priority'] = a / b
+                        self.graph.nodes[node]['Priority'] = a / b
                         self.graph.nodes[node]['codingRate'] = a
-            currdict = {node: self.graph.nodes[node]['priority'] for node in self.graph.nodes}
+            currdict = {node: self.graph.nodes[node]['Priority'] for node in self.graph.nodes}
 
     def calcdeotx(self):
         """Calculate second layer of more like david would do."""
@@ -595,11 +595,11 @@ class Simulator:
             self.calcanchor()
             for node in self.nodes:
                 try:
-                    node.setpriority(self.graph.nodes[str(node)]['priority'])
+                    node.setpriority(self.graph.nodes[str(node)]['Priority'])
                     node.setcredit(self.graph.nodes[str(node)]['codingRate'])
                 except KeyError:
                     pass
-            self.eotxdict['None'] = {node: self.graph.nodes[node]['priority'] for node in self.graph.nodes}
+            self.eotxdict['None'] = {node: self.graph.nodes[node]['Priority'] for node in self.graph.nodes}
         self.mcut = nx.minimum_edge_cut(self.graph, s='S', t='D')
         self.dijkstra = nx.shortest_path(self.graph, source='S', target='D', weight='weight')
         if self.david:
@@ -736,7 +736,7 @@ class Simulator:
                 if node.isdone() and str(node) not in self.donedict and self.batch == node.getbatch():
                     logging.debug('Node {} done at timestep {}'.format(str(node), self.timestamp))
                     self.donedict[str(node)] = self.timestamp
-                # self.ranklist[str(node)].append(node.getrank())       # Just for debugging
+                self.ranklist[str(node)].append(node.getrank())       # Just for debugging
             self.timestamp += 1
             if not self.checkduration():
                 return True
