@@ -25,8 +25,9 @@ class Simulator:
     """Round based simulator to simulate traffic in meshed network."""
     def __init__(self, jsonfile=None, coding=None, fieldsize=2, sendall=0, own=True, edgefail=None, nodefail=None,
                  allfail=False, randcof=(10, 0.5), folder='.', maxduration=0, randomseed=None, sourceshift=False,
-                 newshift=False, david=False, edgefailprob=0.1, hops=0, optimal=False):
+                 newshift=False, david=False, edgefailprob=0.1, hops=0, optimal=False, trash=False, anchor=False):
         self.airtime = {'None': {}}
+        self.anchor = anchor
         self.sourceshift = sourceshift
         self.newshift = newshift
         self.optimal = optimal
@@ -40,6 +41,7 @@ class Simulator:
         self.maxduration = maxduration
         self.eotxdict = {}
         self.config = {}
+        self.trash = trash      # Log trash?
         self.graph = None
         self.folder = folder
         self.prevfail = None
@@ -82,8 +84,9 @@ class Simulator:
                                                 prevdeotx=node.getdeotx(), special=special, ts=self.timestamp)
                                 ident = self.getidentifier()
                                 if str(node) + neighbor not in self.path[ident]:
-                                    self.path[ident][(str(node) + neighbor)] = []
-                                self.path[ident][(str(node) + neighbor)].append(self.timestamp)
+                                    self.path[ident][(str(node) + neighbor)] = 1
+                                else:
+                                    self.path[ident][(str(node) + neighbor)] += 1
                             break
 
     def calcairtime(self):
@@ -93,6 +96,52 @@ class Simulator:
         for node in self.airtime[ident].keys():
             summe += len(self.airtime[ident][node])
         return summe
+
+    def calcanchor(self):
+        """Calculate ANCHORS metric."""
+        for node in self.graph.nodes:
+            if node == 'D':
+                self.graph.nodes[node]['priority'] = 1.
+            else:
+                self.graph.nodes[node]['priority'] = 1/len(self.graph.nodes)
+            self.graph.nodes[node]['ForwarderList'] = []
+        prevdict, currdict = {node: self.graph.nodes[node]['priority'] for node in self.graph.nodes}, {}
+        while prevdict != currdict:
+            if currdict:
+                prevdict = currdict.copy()
+            for node in self.graph.nodes:
+                if node == 'D':
+                    continue
+                for neighbor in self.graph.neighbors(node):
+                    if self.graph.nodes[neighbor]['priority'] > self.graph.nodes[node]['priority'] and \
+                            neighbor not in self.graph.nodes[node]['ForwarderList'] and neighbor != 'S':
+                        self.graph.nodes[node]['ForwarderList'].append(neighbor)
+                        a = 1.
+                        for n in self.graph.nodes[node]['ForwarderList']:
+                            try:
+                                a *= self.graph.edges[n, node]['weight']
+                            except KeyError:
+                                pass
+                        a = 1 - a
+                        r = 0.
+                        for n in self.graph.nodes[node]['ForwarderList']:
+                            if n != 'D':
+                                try:
+                                    c = self.graph.edges[n, node]['weight']
+                                except KeyError:
+                                    continue
+                                for m in self.graph.nodes[node]['ForwarderList']:
+                                    if m != 'D' and self.graph.nodes[n]['priority'] < self.graph.nodes[m]['priority']:
+                                        try:
+                                            c *= self.graph.edges[n, m]['weight']
+                                        except KeyError:
+                                            continue
+                                c *= 1 / self.graph.nodes[node]['priority']
+                                r += c
+                        b = 1 + r
+                        self.graph.nodes[node]['priority'] = a / b
+                        self.graph.nodes[node]['codingRate'] = a
+            currdict = {node: self.graph.nodes[node]['priority'] for node in self.graph.nodes}
 
     def calcdeotx(self):
         """Calculate second layer of more like david would do."""
@@ -532,15 +581,25 @@ class Simulator:
             self.calceotx()
             credit = self.calc_tx_credit()
             logging.info('Created network from JSON successfully!')
-        self.nodes = [components.Node(name=name, coding=self.coding, fieldsize=self.fieldsize, random=self.random)
-                      for name in self.graph.nodes]
+        self.nodes = [components.Node(name=name, coding=self.coding, fieldsize=self.fieldsize, random=self.random,
+                                      trash=self.trash) for name in self.graph.nodes]
         for node in self.nodes:
             try:
                 node.seteotx(self.graph.nodes[str(node)]['EOTX'])
-                node.setcredit(credit[str(node)])
+                if not self.newshift:
+                    node.setcredit(credit[str(node)])
             except KeyError:
                 pass
         self.eotxdict['None'] = self.geteotx()
+        if self.anchor:
+            self.calcanchor()
+            for node in self.nodes:
+                try:
+                    node.setpriority(self.graph.nodes[str(node)]['priority'])
+                    node.setcredit(self.graph.nodes[str(node)]['codingRate'])
+                except KeyError:
+                    pass
+            self.eotxdict['None'] = {node: self.graph.nodes[node]['priority'] for node in self.graph.nodes}
         self.mcut = nx.minimum_edge_cut(self.graph, s='S', t='D')
         self.dijkstra = nx.shortest_path(self.graph, source='S', target='D', weight='weight')
         if self.david:
@@ -637,9 +696,9 @@ class Simulator:
                     node.reducecredit()
                     ident = self.getidentifier()
                     if str(node) in self.airtime[ident].keys():
-                        self.airtime[ident][str(node)].append(self.timestamp)
+                        self.airtime[ident][str(node)] += 1
                     else:
-                        self.airtime[ident][str(node)] = [self.timestamp]
+                        self.airtime[ident][str(node)] = 1
 
     def sendsel(self):
         """Just the selected amount of nodes send at one timeslot."""
@@ -654,9 +713,9 @@ class Simulator:
                 goodnodes[k].reducecredit()
                 ident = self.getidentifier()
                 if str(goodnodes[k]) in self.airtime[ident].keys():
-                    self.airtime[ident][str(goodnodes[k])].append(self.timestamp)
+                    self.airtime[ident][str(goodnodes[k])] += 1
                 else:
-                    self.airtime[ident][str(goodnodes[k])] = [self.timestamp]
+                    self.airtime[ident][str(goodnodes[k])] = 1
             del goodnodes[k]
 
     def update(self):
@@ -677,7 +736,7 @@ class Simulator:
                 if node.isdone() and str(node) not in self.donedict and self.batch == node.getbatch():
                     logging.debug('Node {} done at timestep {}'.format(str(node), self.timestamp))
                     self.donedict[str(node)] = self.timestamp
-                self.ranklist[str(node)].append(node.getrank())
+                # self.ranklist[str(node)].append(node.getrank())       # Just for debugging
             self.timestamp += 1
             if not self.checkduration():
                 return True
@@ -691,8 +750,8 @@ class Simulator:
             json.dump(self.airtime, file)
         with open('{}/path.json'.format(self.folder), 'w') as file:
             json.dump(self.path, file)
-        with open('{}/ranklist.json'.format(self.folder), 'w') as file:
-            json.dump(self.ranklist, file)
+        # with open('{}/ranklist.json'.format(self.folder), 'w') as file:
+        #    json.dump(self.ranklist, file)     # Just for debugging
         config = {'json': self.json, 'coding': self.coding, 'fieldsize': self.fieldsize, 'sendam': self.sendam,
                   'own': self.own, 'failedge': self.edgefail, 'failnode': self.nodefail, 'failall': self.allfail,
                   'randconf': self.randcof, 'folder': self.folder, 'maxduration': self.maxduration,
@@ -700,18 +759,19 @@ class Simulator:
                   'david': self.david, 'resilience': self.resilience, 'path': list(self.dijkstra),
                   'mcut': list(self.mcut), 'optimal': self.optimal}
         with open('{}/config.json'.format(self.folder), 'w') as file:
-            json.dump(config, file)
-        for kind in ['overhearing', 'real']:
-            trashdict = {}
-            for node in self.nodes:
-                if str(node) != 'S':
-                    if kind == 'real':
-                        trash = node.getrealtrash(self.timestamp)
-                    else:
-                        trash = node.gettrash(self.timestamp)
-                    trashdict[str(node)] = trash
-            with open('{}/{}trash.json'.format(self.folder, kind), 'w') as file:
-                json.dump(trashdict, file)
+            json.dump(config, file, indent=4)
+        if self.trash:
+            for kind in ['overhearing', 'real']:
+                trashdict = {}
+                for node in self.nodes:
+                    if str(node) != 'S':
+                        if kind == 'real':
+                            trash = node.getrealtrash(self.timestamp)
+                        else:
+                            trash = node.gettrash(self.timestamp)
+                        trashdict[str(node)] = trash
+                with open('{}/{}trash.json'.format(self.folder, kind), 'w') as file:
+                    json.dump(trashdict, file)
         with open('{}/failhist.json'.format(self.folder), 'w') as file:
             json.dump(self.failhist, file)
         if isinstance(self.prevfail, tuple):        # Repair graph before writing it down

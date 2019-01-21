@@ -22,7 +22,7 @@ def makenice(trash, maxts):
 
 class Node:
     """Representation of a node on the network."""
-    def __init__(self, name='S', coding=None, fieldsize=1, random=None):
+    def __init__(self, name='S', coding=None, fieldsize=1, random=None, trash=False):
         if random is None:
             np.random.seed(1)
         else:
@@ -41,6 +41,7 @@ class Node:
         self.name = name
         self.fieldsize = 2 ** fieldsize
         self.incbuffer = []
+        self.trtrash = trash
         self.coding = coding
         self.batch = 0
         self.eotx = float('inf')
@@ -51,6 +52,7 @@ class Node:
         self.trash = []
         self.working = True
         self.realtrash = []
+        self.priority = 0.
         self.quiet = False
         self.history = []
         self.sendhistory = []
@@ -66,10 +68,8 @@ class Node:
 
     def becomesource(self):
         """Act like source. Will be triggered if all neighbors are complete."""
-        if self.complete:
-            self.creditcounter += 1     # Send next timeslot if you should and your done
-        elif self.credit < 0.:
-            self.creditcounter += 1     # Just ignore MORE if it ignores you
+        if self.complete or self.creditcounter == 0. or self.credit == 0.:   # Just ignore MORE it it ignores you
+            self.creditcounter += 1     # Send next time slot if you should and your done
 
     def fail(self):
         """Set nodes state to fail."""
@@ -98,7 +98,10 @@ class Node:
 
     def geteotx(self):
         """Get eotx."""
-        return self.eotx
+        if not self.priority:
+            return self.eotx
+        else:
+            return self.priority
 
     def getdeotx(self):
         """Get davids eotx."""
@@ -182,10 +185,11 @@ class Node:
                     self.complete = self.coder.is_complete()
                     if special and self.credit == 0:
                         self.creditcounter += 1
-                elif preveotx > self.eotx:
-                    self.realtrash.append(timestamp)
-                else:
-                    self.trash.append(timestamp)
+                elif self.trtrash:      # Just log trash if wished
+                    if preveotx > self.eotx:
+                        self.realtrash.append(timestamp)
+                    else:
+                        self.trash.append(timestamp)
             if preveotx > self.eotx or prevdeotx > self.deotx:
                 self.creditcounter += self.credit
 
@@ -216,6 +220,10 @@ class Node:
     def setdeotx(self, eotx=float('inf')):
         """Set davids eotx to given value."""
         self.deotx = eotx
+
+    def setpriority(self, priority=0.):
+        """Set priority in case to use ANCHOR."""
+        self.priority = priority
 
     def stopsending(self):
         """Stop sending if every neighbor is complete."""

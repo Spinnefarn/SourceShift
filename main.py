@@ -26,7 +26,7 @@ def parse_args():
                         dest='coding',
                         type=int,
                         help='Batch size for coded packets. Default None(without coding)',
-                        default=16)
+                        default=42)
     parser.add_argument('-f', '--fieldsize',
                         dest='fieldsize',
                         type=int,
@@ -37,6 +37,11 @@ def parse_args():
                         type=int,
                         help='Amount of nodes allowed to send per timeslot.',
                         default=0)
+    parser.add_argument('-a', '--anchor',
+                        dest='anchor',
+                        type=bool,
+                        help='Use anchor or MORE.',
+                        default=False)
     parser.add_argument('-o', '--own',
                         dest='own',
                         type=bool,
@@ -118,7 +123,7 @@ if __name__ == '__main__':
                     sendall=args.sendam, own=args.own, edgefail=args.failedge, nodefail=args.failnode,
                     allfail=args.failall, randcof=args.randomnodes, folder=args.folder,
                     maxduration=args.maxduration, randomseed=randomnumber, sourceshift=args.sourceshift,
-                    newshift=args.newshift, david=args.david, hops=5, optimal=args.optimal)
+                    newshift=args.newshift, david=args.david, hops=5, optimal=args.optimal, anchor=args.anchor)
     starttime = time.time()
     complete = False
     while not complete:

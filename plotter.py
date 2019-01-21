@@ -396,9 +396,9 @@ def getopt(mainfolder=None, folders=None, plotfail='all'):
                     continue
                 for node, airtime in nodes.items():
                     if node not in plots[protocol].keys():
-                        plots[protocol][node] = [len(airtime) / globconfig['coding']]
+                        plots[protocol][node] = [airtime / globconfig['coding']]
                     else:
-                        plots[protocol][node].append(len(airtime) / globconfig['coding'])
+                        plots[protocol][node].append(airtime / globconfig['coding'])
     plotlist = {}
     for protocol in sorted(plots.keys()):
         plotlist[protocol] = {}
@@ -417,8 +417,7 @@ def parseairtime(dic, plotfail='all'):
         counter = []
         for folder in dic.keys():
             try:
-                counter.append(sum([len(dic[folder][fail][node])
-                                    for node in dic[folder][fail].keys()]))
+                counter.append(sum([dic[folder][fail][node] for node in dic[folder][fail].keys()]))
             except KeyError:
                 pass
         plot[fail] = statistics.mean(counter)
@@ -512,7 +511,7 @@ def parseaircdf(mainfolder, folders, mode='regular', plotfail='all'):
             counter = []
             for folder in incdicts[protocol].keys():
                 try:
-                    counter.append(sum([len(incdicts[protocol][folder][fail][node])
+                    counter.append(sum([incdicts[protocol][folder][fail][node]
                                         for node in incdicts[protocol][folder][fail].keys()]))
                 except KeyError:
                     pass
@@ -888,7 +887,7 @@ def plotlatcdf(mainfolder=None, folders=None, plotfail='all'):
         else:
             p.title('Required latency and {} failure'.format(plotfail))
         p.ylabel('Fraction of Latency')
-        p.xlabel('Latency in timeslots')
+        p.xlabel('Latency in time slots')
         # p.ylim([0.8, 1])
         # p.xlim(left=0)
         p.xscale('log')
@@ -997,8 +996,7 @@ def plotgaincdf(mainfolder=None):
         p.xlabel('Difference in percent')
         p.ylim([0, 1])
         # p.ylim([0.8, 1])
-        # p.xlim(left=0)
-        # p.xscale('log')
+        p.xlim([-100, 200])
         p.grid(True)
         p.legend(loc='best')
         p.tight_layout()
@@ -1056,10 +1054,10 @@ def plotgraph(folders=None):
             drawunused(net, pos)
             if fail == 'None':
                 p.savefig('{}/graph.pdf'.format(folder))  # Save it once without purple
-            alphaval = 1 / max([len(value) for value in path[fail].values()])
+            alphaval = 1 / max([value for value in path[fail].values()])
             for edge in path[fail].keys():
                 nx.draw_networkx_edges(net, pos=pos, edgelist=[(edge[0], edge[1])], width=8,
-                                       alpha=len(path[fail][edge]) * alphaval, edge_color='purple')
+                                       alpha=path[fail][edge] * alphaval, edge_color='purple')
             p.savefig('{}/graphfail{}.pdf'.format(folder, fail))
             p.clf()
     p.close()
@@ -1214,7 +1212,7 @@ if __name__ == '__main__':
     logging.basicConfig(filename='plotlog.log', level=logging.DEBUG, filemode='w')
     now = datetime.datetime.now()
     # date = str(int(str(now.year) + str(now.month) + str(now.day)))
-    date = '../20181225'
+    date = '../expnodav'
     folderlist = []
     for i in range(12):
         folderlst = []
@@ -1230,11 +1228,11 @@ if __name__ == '__main__':
         # plotfailhist(mfolder, folderlst)
     plotopt(date)
     plotopt(date, plotfail='None')
-    # plotaircdf(date, plotfail='None')
-    # plotlatcdf(date, plotfail='None')
+    plotaircdf(date, plotfail='None')
+    plotlatcdf(date, plotfail='None')
     plotgaincdf(date)
     plotperhop(date)
     plotperhop(date, kind='mcut')
     # plotqq(['../expdav', '../expnodav'])
-    plottrash(date)
-    # plotgraph(folders=folderlist)
+    # plottrash(date)
+    plotgraph(folders=folderlist)
