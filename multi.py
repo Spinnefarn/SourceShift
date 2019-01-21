@@ -52,6 +52,11 @@ def parse_args():
                         type=bool,
                         help='Enable source shifting',
                         default=False)
+    parser.add_argument('-op', '--optimal',
+                        dest='optimal',
+                        type=bool,
+                        help='Use MORE but recalculate in case of failure.',
+                        default=False)
     parser.add_argument('-ns', '--newshift',
                         dest='newshift',
                         type=bool,
@@ -103,7 +108,7 @@ def runsim(config):
                     nodefail=config['failnode'], allfail=config['failall'], randcof=config['randconf'],
                     folder=config['folder'], maxduration=config['maxduration'], randomseed=randomseed,
                     sourceshift=config['sourceshift'], newshift=config['newshift'], david=config['david'],
-                    hops=config['hops'])
+                    hops=config['hops'], optimal=config['optimal'])
     logging.info('Start simulator {}'.format(config['folder']))
     starttime = time.time()
     complete = False
@@ -138,12 +143,13 @@ def cleanfolder(folder):
 
 def setmode(config, count):
     """Set config mode."""
-    mode = ['oss', 'o', 'ns', 'ss', 'davidss', 'david', 'm']
+    mode = ['oss', 'o', 'ns', 'ss', 'davidss', 'david', 'm', 'opt']
     try:
         count = int(count) % len(mode)
     except (TypeError, ValueError):
         count = 0
-    config['own'], config['sourceshift'], config['newshift'], config['david'] = False, False, False, 0.0
+    config['own'], config['sourceshift'], config['newshift'], config['david'], config['optimal'] = \
+        False, False, False, 0.0, False
     if mode[count] == 'm':
         pass
     elif mode[count] == 'o':
@@ -158,6 +164,8 @@ def setmode(config, count):
         config['sourceshift'], config['david'] = True, 1.0
     elif mode[count] == 'david':
         config['david'] = 1.0
+    elif mode[count] == 'opt':
+        config['optimal'] = True
     return config
 
 
@@ -176,7 +184,7 @@ def plotall(mfolder, counter, liste):
     # plotter.plotperhop(mfolder, kind='mcut')
     # plotter.plottrash(mfolder)
     plotter.plotgraph(['{0}/graph{1}/test'.format(mfolder, counter)])  # Just plot each graph once
-    # plotter.plotgraph(['{0}/graph{1}/{2}'.format(mfolder, counter, folder) for folder in liste[:10]])
+    plotter.plotgraph(['{0}/graph{1}/{2}'.format(mfolder, counter, folder) for folder in liste[:8]])
 
 
 if __name__ == '__main__':
@@ -193,13 +201,13 @@ if __name__ == '__main__':
     # date = '../exp'
     plot, plotconf = None, None
     processes = []
-    for i in range(100):
+    for i in range(10):
         logging.info('Created new graph at graph{}'.format(i))
         confdict = {'json': args.json, 'randconf': args.amount, 'coding': args.coding, 'fieldsize': args.fieldsize,
                     'sendam': args.sendam, 'own': args.own, 'failedge': args.failedge, 'failnode': args.failnode,
                     'failall': False, 'folder': '{}/graph{}/test'.format(date, i), 'maxduration': args.maxduration,
                     'random': args.random, 'sourceshift': args.sourceshift, 'newshift': args.newshift,
-                    'david': 0.0, 'hops': (i + 1) % 8}
+                    'david': 0.0, 'hops': 0, 'optimal': args.optimal}
         cleanfolder(confdict['folder'])
         launchsubp(confdict)
         while not os.path.exists(confdict['folder'] + '/graph.json'):
