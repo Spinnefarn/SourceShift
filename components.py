@@ -20,6 +20,21 @@ def makenice(trash, maxts):
     return {key: intdict[key] for key in sorted(intdict.keys())}
 
 
+def selfieldsize(fieldsize=2):
+    """Chose fieldsize."""
+    if fieldsize == 2:
+        return kodo.field.binary
+    elif fieldsize == 4:
+        return kodo.field.binary4
+    elif fieldsize == 8:
+        return kodo.field.binary8
+    elif fieldsize == 16:
+        return kodo.field.binary16
+    else:
+        import logging
+        logging.error('Unsupported fieldsize {}'.format(fieldsize))
+
+
 class Node:
     """Representation of a node on the network."""
     def __init__(self, name='S', coding=None, fieldsize=1, random=None, trash=False):
@@ -27,15 +42,16 @@ class Node:
             np.random.seed(1)
         else:
             np.random.seed(random)
-        symbol_size = 16
+        symbol_size = 8
         self.coder = None
+        self.field = selfieldsize(2 ** fieldsize)
         if name == 'S':
-            self.factory = kodo.RLNCEncoderFactory(kodo.field.binary, coding, symbol_size)
+            self.factory = kodo.RLNCEncoderFactory(self.field, coding, symbol_size)
             self.coder = self.factory.build()
             self.data = bytearray(os.urandom(self.coder.block_size()))
             self.coder.set_const_symbols(self.data)
         else:
-            self.factory = kodo.RLNCDecoderFactory(kodo.field.binary, coding, symbol_size)
+            self.factory = kodo.RLNCDecoderFactory(self.fieldsize, coding, symbol_size)
             self.coder = self.factory.build()
             self.data = bytearray(self.coder.block_size())
         self.name = name
@@ -63,8 +79,8 @@ class Node:
 
     def buffpacket(self, batch=0, coding=None, preveotx=0, prevdeotx=0, special=False, ts=0):
         """Buffer incoming packets so they will be received at end of time slot."""
-        self.incbuffer.append((batch, coding, preveotx, prevdeotx, special))
-        self.history.append((batch, coding, preveotx, prevdeotx, special, ts))
+        self.incbuffer.append((batch, coding.copy(), preveotx, prevdeotx, special))
+        # self.history.append((batch, coding.copy(), preveotx, prevdeotx, special, ts))
 
     def becomesource(self):
         """Act like source. Will be triggered if all neighbors are complete."""
@@ -84,6 +100,8 @@ class Node:
         if self.name == 'D':  # Make sure destination will never send a packet
             return None
         elif self.name == 'S' or self.creditcounter > 0:
+            # self.sendhistory.append((self.batch, self.coder.rank(), self.coder.write_payload()))
+            # return self.sendhistory[-1][-1]
             return self.coder.write_payload()
         else:
             return None
@@ -160,7 +178,8 @@ class Node:
         while len(self.incbuffer):
             batch, coding, preveotx, prevdeotx, special = self.incbuffer.pop()
             if self.name == 'S':  # Cant get new information if you're source
-                self.realtrash.append(timestamp)        # Source never gets useful packet
+                if self.trtrash:
+                    self.realtrash.append(timestamp)        # Source never gets useful packet
                 continue
             elif batch < self.batch:
                 continue

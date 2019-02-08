@@ -57,7 +57,7 @@ def parse_args():
                         type=bool,
                         help='Enable source shifting',
                         default=False)
-    parser.add_argument('-op', '--optimal',
+    parser.add_argument('-opt', '--optimal',
                         dest='optimal',
                         type=bool,
                         help='Use MORE but recalculate in case of failure.',
@@ -148,13 +148,14 @@ def cleanfolder(folder):
 
 def setmode(config, count):
     """Set config mode."""
-    mode = ['oss', 'o', 'ns', 'ss', 'davidss', 'david', 'm', 'opt', 'anchor']
+    # mode = ['oss', 'o', 'ns', 'ss', 'davidss', 'david', 'm', 'opt', 'anchor']
+    mode = ['oss', 'ns', 'david', 'm', 'opt', 'anchor']
     try:
         count = int(count) % len(mode)
     except (TypeError, ValueError):
         count = 0
-    config['own'], config['sourceshift'], config['newshift'], config['david'], config['optimal'] = \
-        False, False, False, 0.0, False
+    config['own'], config['sourceshift'], config['newshift'], config['david'], config['optimal'], config['anchor'] = \
+        False, False, False, 0.0, False, False
     if mode[count] == 'm':
         pass
     elif mode[count] == 'o':
@@ -173,7 +174,6 @@ def setmode(config, count):
         config['optimal'] = True
     elif mode[count] == 'anchor':
         config['anchor'] = True
-    print(str(mode[count]))
     return config
 
 
@@ -210,13 +210,13 @@ if __name__ == '__main__':
     # date = '../expnodav'
     plot, plotconf = None, None
     processes = []
-    for i in range(1000):
+    for i in range(3):
         logging.info('Created new graph at graph{}'.format(i))
         confdict = {'json': args.json, 'randconf': args.amount, 'coding': args.coding, 'fieldsize': args.fieldsize,
                     'sendam': args.sendam, 'own': args.own, 'failedge': args.failedge, 'failnode': args.failnode,
                     'failall': False, 'folder': '{}/graph{}/test'.format(date, i), 'maxduration': args.maxduration,
                     'random': args.random, 'sourceshift': args.sourceshift, 'newshift': args.newshift,
-                    'david': 0.0, 'hops': 0, 'optimal': args.optimal, 'anchor': args.anchor}
+                    'david': 0.0, 'hops': (i % 9) + 1, 'optimal': args.optimal, 'anchor': args.anchor}
         cleanfolder(confdict['folder'])
         launchsubp(confdict)
         while not os.path.exists(confdict['folder'] + '/graph.json'):
@@ -234,12 +234,12 @@ if __name__ == '__main__':
                     'random': randomnumber, 'sourceshift': args.sourceshift, 'hops': 0, 'optimal': args.optimal,
                     'anchor': args.anchor}
         logging.info('Randomseed = ' + str(randomnumber))
-        folderlist = ['test{}'.format(i) for i in range(60)]     # Should be much bigger than number of available cores
+        folderlist = ['test{}'.format(i) for i in range(12)]     # Should be much bigger than number of available cores
         try:
             for element in folderlist:
                 cleanfolder('{}/graph{}/{}'.format(date, i, element))
                 confdict['json'] = '{}/graph{}/test/graph.json'.format(date, i)
-                confdict['json'] = 'demograph2.json'
+                confdict['json'] = 'problem.json'
                 confdict['folder'] = '{}/graph{}/{}'.format(date, i, element)
                 confdict = setmode(confdict, element[-1])
                 confdict['maxduration'] = 200 * failhist['None'][0]

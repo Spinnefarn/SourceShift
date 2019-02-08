@@ -269,7 +269,6 @@ def getfailhistmode(mainfolder=None, folders=None, mode='perhop', plotfail='all'
         quit(1)
     if mainfolder is None:
         mainfolder = ''
-    p.figure(figsize=(20, 10))
     incdicts, config = {}, {}
     for folder in folders:
         try:
@@ -865,7 +864,8 @@ def plotaircdf(mainfolder=None, folders=None, plotfail='all'):
         for subfolder in cmain:
             folders.extend(['{}/{}'.format(subfolder, subsubfolder)
                             for subsubfolder in os.listdir('{}/{}'.format(mainfolder, subfolder))
-                            if os.path.isdir('{}/{}/{}'.format(mainfolder, subfolder, subsubfolder))])
+                            if os.path.isdir('{}/{}/{}'.format(mainfolder, subfolder, subsubfolder)) and
+                            subsubfolder != 'test'])
     if mainfolder is None:
         mainfolder = ''
     plotlist = parseaircdf(mainfolder, folders, plotfail=plotfail)
@@ -893,7 +893,7 @@ def plotaircdf(mainfolder=None, folders=None, plotfail='all'):
             p.ylim([0, 1])
             p.savefig('{}/air{}cdf.pdf'.format(mainfolder, plotfail))
         else:
-            p.ylim([0.95, 1])
+            p.ylim([0.8, 1])
             p.savefig('{}/air{}closecdf.pdf'.format(mainfolder, plotfail))
         p.close()
 
@@ -906,7 +906,8 @@ def plotlatcdf(mainfolder=None, folders=None, plotfail='all'):
         for subfolder in cmain:
             folders.extend(['{}/{}'.format(subfolder, subsubfolder)
                             for subsubfolder in os.listdir('{}/{}'.format(mainfolder, subfolder))
-                            if os.path.isdir('{}/{}/{}'.format(mainfolder, subfolder, subsubfolder))])
+                            if os.path.isdir('{}/{}/{}'.format(mainfolder, subfolder, subsubfolder)) and
+                            subsubfolder != 'test'])
     if mainfolder is None:
         mainfolder = ''
     plotlist = parsefailcdf(mainfolder, folders, plotfail=plotfail)
@@ -935,7 +936,7 @@ def plotlatcdf(mainfolder=None, folders=None, plotfail='all'):
             p.ylim([0, 1])
             p.savefig('{}/lat{}cdf.pdf'.format(mainfolder, plotfail))
         else:
-            p.ylim([0.95, 1])
+            p.ylim([0.8, 1])
             p.savefig('{}/lat{}closecdf.pdf'.format(mainfolder, plotfail))
         p.close()
 
@@ -1015,7 +1016,8 @@ def plotgaincdf(mainfolder=None):
     for subfolder in cmain:
         folders.extend(['{}/{}'.format(subfolder, subsubfolder)
                         for subsubfolder in os.listdir('{}/{}'.format(mainfolder, subfolder))
-                        if os.path.isdir('{}/{}/{}'.format(mainfolder, subfolder, subsubfolder))])
+                        if os.path.isdir('{}/{}/{}'.format(mainfolder, subfolder, subsubfolder)) and
+                        subsubfolder != 'test'])
     for mode in ['airtime', 'latency']:
         if mode == 'latency':
             gainlist = parsefailcdf(mainfolder, folders, mode='gain')
@@ -1108,7 +1110,8 @@ def plotopt(mainfolder=None, plotfail='all'):
     for subfolder in cmain:
         folders.extend(['{}/{}'.format(subfolder, subsubfolder)
                         for subsubfolder in os.listdir('{}/{}'.format(mainfolder, subfolder))
-                        if os.path.isdir('{}/{}/{}'.format(mainfolder, subfolder, subsubfolder))])
+                        if os.path.isdir('{}/{}/{}'.format(mainfolder, subfolder, subsubfolder)) and
+                        subsubfolder != 'test'])
     plotlist = getopt(mainfolder, folders, plotfail=plotfail)
     width = 0.9 / len(plotlist.keys())
     p.figure(figsize=(20, 8.4))
@@ -1137,7 +1140,8 @@ def plotperhop(mainfolder=None, kind='perhop'):
     for subfolder in cmain:
         folders.extend(['{}/{}'.format(subfolder, subsubfolder)
                         for subsubfolder in os.listdir('{}/{}'.format(mainfolder, subfolder))
-                        if os.path.isdir('{}/{}/{}'.format(mainfolder, subfolder, subsubfolder))])
+                        if os.path.isdir('{}/{}/{}'.format(mainfolder, subfolder, subsubfolder)) and
+                        subsubfolder != 'test'])
     for mode in ['airtime', 'latency']:
         if mode == 'latency':
             steps, plotlist, stdlist, config = getfailhistmode(mainfolder, folders, mode=kind)
@@ -1153,7 +1157,10 @@ def plotperhop(mainfolder=None, kind='perhop'):
             # error_kw={'elinewidth': width/3})
         p.legend(loc='best')
         p.yscale('log')
-        p.ylabel('Needed Latency in timeslots')
+        if mode == 'airtime':
+            p.ylabel('Needed airtime in transmissions')
+        else:
+            p.ylabel('Needed latency in timeslots')
         if kind == 'perhop':
             p.xlabel('Minimum amount of hops between Source and Destination')
         else:
@@ -1185,7 +1192,7 @@ def plotqq(mainfolder=None):
         for subfolder in cmain:
             folders.extend(['{}/{}'.format(subfolder, subsubfolder)
                             for subsubfolder in os.listdir('{}/{}'.format(x, subfolder))
-                            if os.path.isdir('{}/{}/{}'.format(x, subfolder, subsubfolder))])
+                            if os.path.isdir('{}/{}/{}'.format(x, subfolder, subsubfolder)) and subsubfolder != 'test'])
         plotlist.append(parsefailcdf(x, folders))
 
     # p.figure(figsize=(4.2, 6.18))
@@ -1220,7 +1227,8 @@ def plottrash(mainfolder=None):
     for subfolder in cmain:
         folders.extend(['{}/{}'.format(subfolder, subsubfolder)
                         for subsubfolder in os.listdir('{}/{}'.format(mainfolder, subfolder))
-                        if os.path.isdir('{}/{}/{}'.format(mainfolder, subfolder, subsubfolder))])
+                        if os.path.isdir('{}/{}/{}'.format(mainfolder, subfolder, subsubfolder)) and
+                        subsubfolder != 'test'])
     for mode in ['real', 'overhearing']:
         try:
             plotlist = parsetrash(mainfolder, folders, mode=mode)
@@ -1248,9 +1256,9 @@ if __name__ == '__main__':
     logging.basicConfig(filename='plotlog.log', level=logging.DEBUG, filemode='w')
     now = datetime.datetime.now()
     # date = str(int(str(now.year) + str(now.month) + str(now.day)))
-    date = '../expnodav'
+    date = '201928'
     folderlist = []
-    for i in range(12):
+    for i in range(3):
         folderlst = []
         # folderlist.append('{}/graph{}/test'.format(date, i))
         folderlist.extend(['{}/graph{}/test{}'.format(date, i, j) for j in range(100)])
@@ -1264,11 +1272,11 @@ if __name__ == '__main__':
         # plotfailhist(mfolder, folderlst)
     # plotopt(date)
     # plotopt(date, plotfail='None')
-    # plotaircdf(date, plotfail='None')
-    # plotlatcdf(date, plotfail='None')
-    # plotgaincdf(date)
-    # plotperhop(date)
-    # plotperhop(date, kind='mcut')
+    plotaircdf(date, plotfail='None')
+    plotlatcdf(date, plotfail='None')
+    plotgaincdf(date)
+    plotperhop(date)
+    plotperhop(date, kind='mcut')
     # plotqq(['../expdav', '../expnodav'])
     # plottrash(date)
     plotgraph(folders=folderlist)

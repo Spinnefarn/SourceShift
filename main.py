@@ -58,7 +58,7 @@ def parse_args():
                         type=bool,
                         help='Enable source shifting',
                         default=False)
-    parser.add_argument('-op', '--optimal',
+    parser.add_argument('-opt', '--optimal',
                         dest='optimal',
                         type=bool,
                         help='Use MORE but recalculate in case of failure.',

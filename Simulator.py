@@ -214,7 +214,7 @@ class Simulator:
                     self.calcz(node, l_i[node], david)
                 else:
                     self.z[node] = l_i[node] / (1 - self.calce(node))
-            except ValueError:
+            except (ValueError, ZeroDivisionError):
                 continue
             p = 1
             for idx2, j in enumerate(list(l_i.keys())[:(len(l_i.keys()) - idx - 1)]):
@@ -680,7 +680,8 @@ class Simulator:
             logging.error(str(self.graph.edges))
         for node in self.nodes:
             try:
-                node.resetcredit()
+                if credit:
+                    node.resetcredit()
                 node.seteotx(self.graph.nodes[str(node)]['EOTX'])
                 node.setcredit(credit[str(node)])
             except KeyError:
