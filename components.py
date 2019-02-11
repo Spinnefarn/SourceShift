@@ -51,7 +51,7 @@ class Node:
             self.data = bytearray(os.urandom(self.coder.block_size()))
             self.coder.set_const_symbols(self.data)
         else:
-            self.factory = kodo.RLNCDecoderFactory(self.fieldsize, coding, symbol_size)
+            self.factory = kodo.RLNCDecoderFactory(self.field, coding, symbol_size)
             self.coder = self.factory.build()
             self.data = bytearray(self.coder.block_size())
         self.name = name

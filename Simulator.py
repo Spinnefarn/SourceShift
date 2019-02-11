@@ -242,7 +242,7 @@ class Simulator:
                         somevalue += self.z[neighbor] * self.graph.edges[node, neighbor]['weight']
             try:
                 credit[node] = self.z[node] / somevalue
-            except ZeroDivisionError:
+            except (ZeroDivisionError, KeyError):
                 pass
         return credit
 
