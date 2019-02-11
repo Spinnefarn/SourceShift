@@ -922,7 +922,7 @@ def plotlatcdf(mainfolder=None, folders=None, plotfail='all'):
         if plotfail == 'all':
             p.title('Required latency per protocol')
         else:
-            p.title('Required latency and {} failure'.format(plotfail))
+            p.title('Required latency for {} failure'.format(plotfail))
         p.ylabel('Fraction of Latency')
         p.xlabel('Latency in time slots')
         # p.ylim([0.8, 1])
@@ -1008,7 +1008,7 @@ def plotgain(mainfolder=None, folders=None):
 
 
 def plotgaincdf(mainfolder=None):
-    """Plot gain in latency and airtime as cdf."""
+    """Plot gain in latency for airtime as cdf."""
     if mainfolder is None:
         return
     folders = []

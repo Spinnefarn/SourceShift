@@ -197,8 +197,11 @@ class Node:
                 if special and self.credit == 0:
                     self.creditcounter += 1
             else:  # Just add new information if its new
-                self.coder.read_payload(coding)
-                newrank = self.coder.rank()
+                if not self.coder.is_complete():
+                    self.coder.read_payload(coding)
+                    newrank = self.coder.rank()
+                else:
+                    newrank = self.rank       # Full coder does not get new information
                 if self.rank < newrank:
                     self.rank = newrank
                     self.complete = self.coder.is_complete()
