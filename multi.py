@@ -62,8 +62,8 @@ def parse_args():
                         type=bool,
                         help='Use MORE but recalculate in case of failure.',
                         default=False)
-    parser.add_argument('-ns', '--newshift',
-                        dest='newshift',
+    parser.add_argument('-no', '--nomore',
+                        dest='nomore',
                         type=bool,
                         help='Enable new shifting, means enhanced version of source shift',
                         default=False)
@@ -112,7 +112,7 @@ def runsim(config):
                     sendall=config['sendam'], own=config['own'], edgefail=config['failedge'],
                     nodefail=config['failnode'], allfail=config['failall'], randcof=config['randconf'],
                     folder=config['folder'], maxduration=config['maxduration'], randomseed=randomseed,
-                    sourceshift=config['sourceshift'], newshift=config['newshift'], david=config['david'],
+                    sourceshift=config['sourceshift'], nomore=config['nomore'], moreres=config['moreres'],
                     hops=config['hops'], optimal=config['optimal'], anchor=config['anchor'])
     logging.info('Start simulator {}'.format(config['folder']))
     starttime = time.time()
@@ -148,13 +148,13 @@ def cleanfolder(folder):
 
 def setmode(config, count):
     """Set config mode."""
-    # mode = ['oss', 'o', 'ns', 'ss', 'davidss', 'david', 'm', 'opt', 'anchor']
-    mode = ['oss', 'ns', 'david', 'm', 'opt', 'anchor']
+    mode = ['oss', 'o', 'no', 'ss', 'moreresss', 'moreres', 'm', 'opt', 'anchor']
+    # mode = ['oss', 'ns', 'moreres', 'm', 'opt', 'anchor']
     try:
         count = int(count) % len(mode)
     except (TypeError, ValueError):
         count = 0
-    config['own'], config['sourceshift'], config['newshift'], config['david'], config['optimal'], config['anchor'] = \
+    config['own'], config['sourceshift'], config['nomore'], config['moreres'], config['optimal'], config['anchor'] = \
         False, False, False, 0.0, False, False
     if mode[count] == 'm':
         pass
@@ -162,14 +162,14 @@ def setmode(config, count):
         config['own'] = True
     elif mode[count] == 'ss':
         config['sourceshift'] = True
-    elif mode[count] == 'ns':
-        config['newshift'] = True
+    elif mode[count] == 'no':
+        config['nomore'] = True
     elif mode[count] == 'oss':
         config['own'], config['sourceshift'] = True, True
-    elif mode[count] == 'davidss':
-        config['sourceshift'], config['david'] = True, 1.0
-    elif mode[count] == 'david':
-        config['david'] = 1.0
+    elif mode[count] == 'moreresss':
+        config['sourceshift'], config['moreres'] = True, 1.0
+    elif mode[count] == 'moreres':
+        config['moreres'] = 1.0
     elif mode[count] == 'opt':
         config['optimal'] = True
     elif mode[count] == 'anchor':
@@ -215,8 +215,8 @@ if __name__ == '__main__':
         confdict = {'json': args.json, 'randconf': args.amount, 'coding': args.coding, 'fieldsize': args.fieldsize,
                     'sendam': args.sendam, 'own': args.own, 'failedge': args.failedge, 'failnode': args.failnode,
                     'failall': False, 'folder': '{}/graph{}/test'.format(date, i), 'maxduration': args.maxduration,
-                    'random': args.random, 'sourceshift': args.sourceshift, 'newshift': args.newshift,
-                    'david': 0.0, 'hops': (i % 9) + 1, 'optimal': args.optimal, 'anchor': args.anchor}
+                    'random': args.random, 'sourceshift': args.sourceshift, 'nomore': args.nomore,
+                    'moreres': 0.0, 'hops': (i % 9) + 1, 'optimal': args.optimal, 'anchor': args.anchor}
         cleanfolder(confdict['folder'])
         launchsubp(confdict)
         while not os.path.exists(confdict['folder'] + '/graph.json'):
@@ -239,7 +239,7 @@ if __name__ == '__main__':
             for element in folderlist:
                 cleanfolder('{}/graph{}/{}'.format(date, i, element))
                 confdict['json'] = '{}/graph{}/test/graph.json'.format(date, i)
-                confdict['json'] = 'problem.json'
+                # confdict['json'] = 'problem.json'
                 confdict['folder'] = '{}/graph{}/{}'.format(date, i, element)
                 confdict = setmode(confdict, element[-1])
                 confdict['maxduration'] = 200 * failhist['None'][0]

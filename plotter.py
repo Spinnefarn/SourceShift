@@ -48,7 +48,7 @@ def getairtime(mainfolder=None, folders=None, plotfail='all'):
             if 'MORELESS' not in incdicts.keys():
                 incdicts['MORELESS'] = {}
             incdicts['MORELESS'][folder] = airtime
-        elif config['sourceshift'] and config['david']:
+        elif config['sourceshift'] and config['moreres']:
             if 'MORERESS' not in incdicts.keys():
                 incdicts['MORERESS'] = {}
             incdicts['MORERESS'][folder] = airtime
@@ -60,11 +60,11 @@ def getairtime(mainfolder=None, folders=None, plotfail='all'):
             if 'Source Shift' not in incdicts.keys():
                 incdicts['Source Shift'] = {}
             incdicts['Source Shift'][folder] = airtime
-        elif config['newshift']:
-            if 'New Shift' not in incdicts.keys():
-                incdicts['New Shift'] = {}
-            incdicts['New Shift'][folder] = airtime
-        elif config['david']:
+        elif config['nomore']:
+            if 'NOMORE' not in incdicts.keys():
+                incdicts['NOMORE'] = {}
+            incdicts['NOMORE'][folder] = airtime
+        elif config['moreres']:
             if 'MOREresilience' not in incdicts.keys():
                 incdicts['MOREresilience'] = {}
             incdicts['MOREresilience'][folder] = airtime
@@ -124,7 +124,7 @@ def getairtimemode(mainfolder=None, folders=None, mode='perhop', plotfail='all')
             if ident not in incdicts['MORELESS'].keys():
                 incdicts['MORELESS'][ident] = {}
             incdicts['MORELESS'][ident][folder] = airtime
-        elif config['sourceshift'] and config['david']:
+        elif config['sourceshift'] and config['moreres']:
             if 'MORERESS' not in incdicts.keys():
                 incdicts['MORERESS'] = {}
             if ident not in incdicts['MORERESS'].keys():
@@ -142,13 +142,13 @@ def getairtimemode(mainfolder=None, folders=None, mode='perhop', plotfail='all')
             if ident not in incdicts['Source Shift'].keys():
                 incdicts['Source Shift'][ident] = {}
             incdicts['Source Shift'][ident][folder] = airtime
-        elif config['newshift']:
-            if 'New Shift' not in incdicts.keys():
-                incdicts['New Shift'] = {}
-            if ident not in incdicts['New Shift'].keys():
-                incdicts['New Shift'][ident] = {}
-            incdicts['New Shift'][ident][folder] = airtime
-        elif config['david']:
+        elif config['nomore']:
+            if 'NOMORE' not in incdicts.keys():
+                incdicts['NOMORE'] = {}
+            if ident not in incdicts['NOMORE'].keys():
+                incdicts['NOMORE'][ident] = {}
+            incdicts['NOMORE'][ident][folder] = airtime
+        elif config['moreres']:
             if 'MOREresilience' not in incdicts.keys():
                 incdicts['MOREresilience'] = {}
             if ident not in incdicts['MOREresilience'].keys():
@@ -212,7 +212,7 @@ def getfailhist(mainfolder=None, folders=None, plotfail='all'):
             if 'MORELESS' not in incdicts.keys():
                 incdicts['MORELESS'] = {}
             incdicts['MORELESS'][folder] = {key: value[0] for key, value in failhist.items()}
-        elif config['sourceshift'] and config['david']:
+        elif config['sourceshift'] and config['moreres']:
             if 'MORERESS' not in incdicts.keys():
                 incdicts['MORERESS'] = {}
             incdicts['MORERESS'][folder] = {key: value[0] for key, value in failhist.items()}
@@ -224,11 +224,11 @@ def getfailhist(mainfolder=None, folders=None, plotfail='all'):
             if 'Source Shift' not in incdicts.keys():
                 incdicts['Source Shift'] = {}
             incdicts['Source Shift'][folder] = {key: value[0] for key, value in failhist.items()}
-        elif config['newshift']:
-            if 'New Shift' not in incdicts.keys():
-                incdicts['New Shift'] = {}
-            incdicts['New Shift'][folder] = {key: value[0] for key, value in failhist.items()}
-        elif config['david']:
+        elif config['nomore']:
+            if 'NOMORE' not in incdicts.keys():
+                incdicts['NOMORE'] = {}
+            incdicts['NOMORE'][folder] = {key: value[0] for key, value in failhist.items()}
+        elif config['moreres']:
             if 'MOREresilience' not in incdicts.keys():
                 incdicts['MOREresilience'] = {}
             incdicts['MOREresilience'][folder] = {key: value[0] for key, value in failhist.items()}
@@ -287,7 +287,7 @@ def getfailhistmode(mainfolder=None, folders=None, mode='perhop', plotfail='all'
             if ident not in incdicts['MORELESS'].keys():
                 incdicts['MORELESS'][ident] = {}
             incdicts['MORELESS'][ident][folder] = {key: value[0] for key, value in failhist.items()}
-        elif config['sourceshift'] and config['david']:
+        elif config['sourceshift'] and config['moreres']:
             if 'MORERESS' not in incdicts.keys():
                 incdicts['MORERESS'] = {}
             if ident not in incdicts['MORERESS'].keys():
@@ -305,13 +305,13 @@ def getfailhistmode(mainfolder=None, folders=None, mode='perhop', plotfail='all'
             if ident not in incdicts['Source Shift'].keys():
                 incdicts['Source Shift'][ident] = {}
             incdicts['Source Shift'][ident][folder] = {key: value[0] for key, value in failhist.items()}
-        elif config['newshift']:
-            if 'New Shift' not in incdicts.keys():
-                incdicts['New Shift'] = {}
-            if ident not in incdicts['New Shift'].keys():
-                incdicts['New Shift'][ident] = {}
-            incdicts['New Shift'][ident][folder] = {key: value[0] for key, value in failhist.items()}
-        elif config['david']:
+        elif config['nomore']:
+            if 'NOMORE' not in incdicts.keys():
+                incdicts['NOMORE'] = {}
+            if ident not in incdicts['NOMORE'].keys():
+                incdicts['NOMORE'][ident] = {}
+            incdicts['NOMORE'][ident][folder] = {key: value[0] for key, value in failhist.items()}
+        elif config['moreres']:
             if 'MOREresilience' not in incdicts.keys():
                 incdicts['MOREresilience'] = {}
             if ident not in incdicts['MOREresilience'].keys():
@@ -378,7 +378,7 @@ def getopt(mainfolder=None, folders=None, plotfail='all'):
             if 'MORELESS' not in incdicts.keys():
                 incdicts['MORELESS'] = {}
             incdicts['MORELESS'][folder] = airtime
-        elif config['sourceshift'] and config['david']:
+        elif config['sourceshift'] and config['moreres']:
             if 'MORERESS' not in incdicts.keys():
                 incdicts['MORERESS'] = {}
             incdicts['MORERESS'][folder] = airtime
@@ -390,11 +390,11 @@ def getopt(mainfolder=None, folders=None, plotfail='all'):
             if 'Source Shift' not in incdicts.keys():
                 incdicts['Source Shift'] = {}
             incdicts['Source Shift'][folder] = airtime
-        elif config['newshift']:
-            if 'New Shift' not in incdicts.keys():
-                incdicts['New Shift'] = {}
-            incdicts['New Shift'][folder] = airtime
-        elif config['david']:
+        elif config['nomore']:
+            if 'NOMORE' not in incdicts.keys():
+                incdicts['NOMORE'] = {}
+            incdicts['NOMORE'][folder] = airtime
+        elif config['moreres']:
             if 'MOREresilience' not in incdicts.keys():
                 incdicts['MOREresilience'] = {}
             incdicts['MOREresilience'][folder] = airtime
@@ -489,7 +489,7 @@ def parseaircdf(mainfolder, folders, mode='regular', plotfail='all'):
                 if 'MORELESS' not in incdicts.keys():
                     incdicts['MORELESS'] = {}
                 incdicts['MORELESS'][folder] = airtime
-            elif config['sourceshift'] and config['david']:
+            elif config['sourceshift'] and config['moreres']:
                 if 'MORERESS' not in incdicts.keys():
                     incdicts['MORERESS'] = {}
                 incdicts['MORERESS'][folder] = airtime
@@ -501,11 +501,11 @@ def parseaircdf(mainfolder, folders, mode='regular', plotfail='all'):
                 if 'Source Shift' not in incdicts.keys():
                     incdicts['Source Shift'] = {}
                 incdicts['Source Shift'][folder] = airtime
-            elif config['newshift']:
-                if 'New Shift' not in incdicts.keys():
-                    incdicts['New Shift'] = {}
-                incdicts['New Shift'][folder] = airtime
-            elif config['david']:
+            elif config['nomore']:
+                if 'NOMORE' not in incdicts.keys():
+                    incdicts['NOMORE'] = {}
+                incdicts['NOMORE'][folder] = airtime
+            elif config['moreres']:
                 if 'MOREresilience' not in incdicts.keys():
                     incdicts['MOREresilience'] = {}
                 incdicts['MOREresilience'][folder] = airtime
@@ -584,7 +584,7 @@ def parsefailcdf(mainfolder, folders, mode='regular', plotfail='all'):
                 if 'MORELESS' not in incdicts.keys():
                     incdicts['MORELESS'] = {}
                 incdicts['MORELESS'][folder] = {key: value[0] for key, value in failhist.items()}
-            elif config['david'] and config['sourceshift']:
+            elif config['moreres'] and config['sourceshift']:
                 if 'MORERESS' not in incdicts.keys():
                     incdicts['MORERESS'] = {}
                 incdicts['MORERESS'][folder] = {key: value[0] for key, value in failhist.items()}
@@ -596,11 +596,11 @@ def parsefailcdf(mainfolder, folders, mode='regular', plotfail='all'):
                 if 'Source Shift' not in incdicts.keys():
                     incdicts['Source Shift'] = {}
                 incdicts['Source Shift'][folder] = {key: value[0] for key, value in failhist.items()}
-            elif config['newshift']:
-                if 'New Shift' not in incdicts.keys():
-                    incdicts['New Shift'] = {}
-                incdicts['New Shift'][folder] = {key: value[0] for key, value in failhist.items()}
-            elif config['david']:
+            elif config['nomore']:
+                if 'NOMORE' not in incdicts.keys():
+                    incdicts['NOMORE'] = {}
+                incdicts['NOMORE'][folder] = {key: value[0] for key, value in failhist.items()}
+            elif config['moreres']:
                 if 'MOREresilience' not in incdicts.keys():
                     incdicts['MOREresilience'] = {}
                 incdicts['MOREresilience'][folder] = {key: value[0] for key, value in failhist.items()}
@@ -686,7 +686,7 @@ def parsetrash(mainfolder, folders, mode='real'):
                 if 'MORELESS' not in incdicts.keys():
                     incdicts['MORELESS'] = {}
                 incdicts['MORELESS'][folder] = trash
-            elif config['david'] and config['sourceshift']:
+            elif config['moreres'] and config['sourceshift']:
                 if 'MORERESS' not in incdicts.keys():
                     incdicts['MORERESS'] = {}
                 incdicts['MORERESS'][folder] = trash
@@ -698,7 +698,7 @@ def parsetrash(mainfolder, folders, mode='real'):
                 if 'Source Shift' not in incdicts.keys():
                     incdicts['Source Shift'] = {}
                 incdicts['Source Shift'][folder] = trash
-            elif config['david']:
+            elif config['moreres']:
                 if 'MOREresilience' not in incdicts.keys():
                     incdicts['MOREresilience'] = {}
                 incdicts['MOREresilience'][folder] = trash
@@ -747,6 +747,10 @@ def readairtime(folder):
         with open('{}/config.json'.format(folder)) as file:
             try:
                 config = json.loads(file.read())
+                if 'david' in config.keys():
+                    config['moreres'] = config['david']
+                if 'newshift' in config.keys():
+                    config['nomore'] = config['newshift']
             except json.decoder.JSONDecodeError:
                 pass
     return airtime, config
@@ -776,6 +780,10 @@ def readfailhist(folder):
         with open('{}/config.json'.format(folder)) as file:
             try:
                 config = json.loads(file.read())
+                if 'david' in config.keys():
+                    config['moreres'] = config['david']
+                if 'newshift' in config.keys():
+                    config['nomore'] = config['newshift']
             except json.decoder.JSONDecodeError:
                 pass
         return failhist, config
@@ -825,6 +833,10 @@ def readtrash(folder, mode='real'):
         with open('{}/config.json'.format(folder, mode)) as file:
             try:
                 config = json.loads(file.read())
+                if 'david' in config.keys():
+                    config['moreres'] = config['david']
+                if 'newshift' in config.keys():
+                    config['nomore'] = config['newshift']
             except json.decoder.JSONDecodeError:
                 pass
     if trash is None or config is None:
@@ -1274,6 +1286,8 @@ if __name__ == '__main__':
     # plotopt(date, plotfail='None')
     plotaircdf(date, plotfail='None')
     plotlatcdf(date, plotfail='None')
+    plotaircdf(date)
+    plotlatcdf(date)
     plotgaincdf(date)
     plotperhop(date)
     plotperhop(date, kind='mcut')

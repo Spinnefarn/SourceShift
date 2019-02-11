@@ -25,13 +25,13 @@ class Simulator:
     """Round based simulator to simulate traffic in meshed network."""
     def __init__(self, jsonfile=None, coding=None, fieldsize=2, sendall=0, own=True, edgefail=None, nodefail=None,
                  allfail=False, randcof=(10, 0.5), folder='.', maxduration=0, randomseed=None, sourceshift=False,
-                 newshift=False, david=False, edgefailprob=0.1, hops=0, optimal=False, trash=False, anchor=False):
+                 nomore=False, moreres=False, edgefailprob=0.1, hops=0, optimal=False, trash=False, anchor=False):
         self.airtime = {'None': {}}
         self.anchor = anchor
         self.sourceshift = sourceshift
-        self.newshift = newshift
+        self.nomore = nomore
         self.optimal = optimal
-        self.david = david
+        self.moreres = moreres
         self.edgefail = edgefail
         self.nodefail = nodefail
         self.allfail = allfail
@@ -153,7 +153,7 @@ class Simulator:
                 if self.graph.nodes[str(node)]['EOTX'] > self.graph.nodes[neighbor]['EOTX']:
                     x[str(node) + neighbor] = self.z[str(node)] * self.graph.edges[str(node), neighbor]['weight'] * \
                                        self.calce(str(node), notnode=neighbor)
-        bestlinks = [edge for edge, edgevalue in x.items() if edgevalue >= self.david]
+        bestlinks = [edge for edge, edgevalue in x.items() if edgevalue >= self.moreres]
         bestlinks = [(edge[0], edge[1], self.graph.edges[edge[0], edge[1]]['weight']) for edge in bestlinks]
         self.graph.remove_edges_from(bestlinks)
         eotx = self.geteotx()
@@ -290,13 +290,13 @@ class Simulator:
             logging.info('Resilience for graph is {}'.format(self.resilience[0]))
         else:
             self.resilience[1] = (1 - self.edgefailprob) ** len(lostlist)
-            if self.david:
+            if self.moreres:
                 logging.info('Resilience for MOREresilience is {}'.format(self.resilience[1]))
             elif self.sourceshift and self.own:
                 logging.info('Resilience for MORELESS is {}'.format(self.resilience[1]))
             elif self.sourceshift:
                 logging.info('Resilience for source shift is {}'.format(self.resilience[1]))
-            elif self.newshift:
+            elif self.nomore:
                 logging.info('Resilience for new shift is {}'.format(self.resilience[1]))
             elif self.own:
                 logging.info('Resilience for own approach is {}'.format(self.resilience[1]))
@@ -370,9 +370,9 @@ class Simulator:
                 node.stopsending()
 
         for node in self.nodes:
-            if ((self.sourceshift and node.isdone()) or (self.newshift and node.getrank() > 0)) and str(node) != 'S':
+            if ((self.sourceshift and node.isdone()) or (self.nomore and node.getrank() > 0)) and str(node) != 'S':
                 for neighbor in self.graph.neighbors(str(node)):
-                    if self.david:
+                    if self.moreres:
                         david = self.graph.nodes[str(node)]['DEOTX'] > self.graph.nodes[neighbor]['DEOTX']
                     else:
                         david = False
@@ -382,7 +382,7 @@ class Simulator:
                                 if self.sourceshift:
                                     if not neighbornode.isdone() or neighbornode.getbatch() < node.getbatch():
                                         node.becomesource()
-                                if self.newshift:
+                                if self.nomore:
                                     if neighbornode.getrank() < node.getrank() \
                                             or neighbornode.getbatch() < node.getbatch():
                                         node.becomesource()
@@ -586,7 +586,7 @@ class Simulator:
         for node in self.nodes:
             try:
                 node.seteotx(self.graph.nodes[str(node)]['EOTX'])
-                if not self.newshift:
+                if not self.nomore:
                     node.setcredit(credit[str(node)])
             except KeyError:
                 pass
@@ -602,7 +602,7 @@ class Simulator:
             self.eotxdict['None'] = {node: self.graph.nodes[node]['Priority'] for node in self.graph.nodes}
         self.mcut = nx.minimum_edge_cut(self.graph, s='S', t='D')
         self.dijkstra = nx.shortest_path(self.graph, source='S', target='D', weight='weight')
-        if self.david:
+        if self.moreres:
             try:
                 self.calcdeotx()
             except ZeroDivisionError:
@@ -722,7 +722,7 @@ class Simulator:
     def update(self):
         """Update one timestep."""
         if not self.done:
-            if self.sourceshift or self.newshift:
+            if self.sourceshift or self.nomore:
                 self.checkstate()
             if self.anchor:
                 self.checkanchor()
@@ -756,8 +756,8 @@ class Simulator:
         config = {'json': self.json, 'coding': self.coding, 'fieldsize': self.fieldsize, 'sendam': self.sendam,
                   'own': self.own, 'failedge': self.edgefail, 'failnode': self.nodefail, 'failall': self.allfail,
                   'randconf': self.randcof, 'folder': self.folder, 'maxduration': self.maxduration,
-                  'randomseed': self.random, 'sourceshift': self.sourceshift, 'newshift': self.newshift,
-                  'david': self.david, 'resilience': self.resilience, 'path': list(self.dijkstra),
+                  'randomseed': self.random, 'sourceshift': self.sourceshift, 'newshift': self.nomore,
+                  'david': self.moreres, 'resilience': self.resilience, 'path': list(self.dijkstra),
                   'mcut': list(self.mcut), 'optimal': self.optimal, 'ANChOR': self.anchor}
         with open('{}/config.json'.format(self.folder), 'w') as file:
             json.dump(config, file, indent=4)
@@ -791,7 +791,7 @@ class Simulator:
         if self.sourceshift:
             with open('{}/AASS.SS'.format(self.folder), 'w') as file:
                 file.write('SS')
-        if self.newshift:
+        if self.nomore:
             with open('{}/AANS.SS'.format(self.folder), 'w') as file:
                 file.write('NS')
         if self.optimal:
@@ -800,7 +800,7 @@ class Simulator:
         if self.anchor:
             with open('{}/AAANChOR.SS'.format(self.folder), 'w') as file:
                 file.write('ANChOR')
-        if self.david:
+        if self.moreres:
             with open('{}/AADAVID.DAVID'.format(self.folder), 'w') as file:
                 file.write('DAVID')
             daveotx = {str(node): node.geteotx() for node in self.nodes}

@@ -63,7 +63,7 @@ def parse_args():
                         type=bool,
                         help='Use MORE but recalculate in case of failure.',
                         default=False)
-    parser.add_argument('-ns', '--newshift',
+    parser.add_argument('-ns', '--nomore',
                         dest='newshift',
                         type=bool,
                         help='Enable new shifting, means enhanced version of source shift',
@@ -93,8 +93,8 @@ def parse_args():
                         type=int,
                         help='Specify a seed to reduce randomness.',
                         default=None)
-    parser.add_argument('-d', '--david',
-                        dest='david',
+    parser.add_argument('-d', '--moreres',
+                        dest='moreres',
                         type=float,
                         help='Use Davids protocol MOREresilience. Value should be float value as limit.',
                         default=0.0)
@@ -124,7 +124,7 @@ if __name__ == '__main__':
                     sendall=args.sendam, own=args.own, edgefail=args.failedge, nodefail=args.failnode,
                     allfail=args.failall, randcof=args.randomnodes, folder=args.folder,
                     maxduration=args.maxduration, randomseed=randomnumber, sourceshift=args.sourceshift,
-                    newshift=args.newshift, david=args.david, hops=5, optimal=args.optimal, anchor=args.anchor)
+                    nomore=args.nomore, moreres=args.moreres, hops=5, optimal=args.optimal, anchor=args.anchor)
     starttime = time.time()
     complete = False
     while not complete:
