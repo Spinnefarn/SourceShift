@@ -23,8 +23,8 @@ def readconf(jsonfile):
 
 class Simulator:
     """Round based simulator to simulate traffic in meshed network."""
-    def __init__(self, jsonfile=None, coding=None, fieldsize=2, sendall=0, own=True, edgefail=None, nodefail=None,
-                 allfail=False, randcof=(10, 0.5), folder='.', maxduration=0, randomseed=None, sourceshift=False,
+    def __init__(self, jsonfile='demograph.json', coding=None, fieldsize=1, sendall=0, own=False, edgefail=None, nodefail=None,
+                 allfail=False, randcof=(20, 0.3), folder='.', maxduration=0, randomseed=None, sourceshift=False,
                  nomore=False, moreres=False, edgefailprob=0.1, hops=0, optimal=False, trash=False, anchor=False):
         self.airtime = {'None': {}}
         self.anchor = anchor
@@ -94,7 +94,7 @@ class Simulator:
         summe = 0
         ident = self.getidentifier()
         for node in self.airtime[ident].keys():
-            summe += len(self.airtime[ident][node])
+            summe += self.airtime[ident][node]
         return summe
 
     def calcanchor(self):
@@ -342,12 +342,11 @@ class Simulator:
 
     def checkspecial(self, node, neighbor):
         """Return True if node should be able to send over special metric."""
-        for invnei in self.graph.neighbors(neighbor):
-            if self.graph.nodes[neighbor]['EOTX'] > self.graph.nodes[invnei]['EOTX']:   # Maybe a different way
-                if invnei != str(node):     # Don't think your source is a different way
+        for invnei in self.graph.neighbors(neighbor):   # Don't think your source is a different way
+            if self.graph.nodes[neighbor]['EOTX'] > self.graph.nodes[invnei]['EOTX'] and invnei != str(node):
                     for invnode in self.nodes:
                         if str(invnode) == invnei:
-                            if node.getbatch() >= invnode.getbatch() and not invnode.isdone():
+                            if node.getbatch() >= invnode.getbatch() or not invnode.isdone():
                                 return True
                             break
         return False

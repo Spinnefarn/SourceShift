@@ -191,6 +191,7 @@ def plotall(mfolder, counter, liste):
     # plotter.plotperhop(mfolder)
     # plotter.plotperhop(mfolder, kind='mcut')
     # plotter.plottrash(mfolder)
+    plotter.plotbox(mfolder)
     plotter.plotgraph(['{0}/graph{1}/test'.format(mfolder, counter)])  # Just plot each graph once
     # plotter.plotgraph(['{0}/graph{1}/{2}'.format(mfolder, counter, folder) for folder in liste[:8]])
 
@@ -207,7 +208,7 @@ if __name__ == '__main__':
         filemode='w')
     now = datetime.datetime.now()
     date = str(now.year) + str(now.month) + str(now.day)
-    # date = '../expnodav'
+    date = '../expnodav'
     plot, plotconf = None, None
     processes = []
     for i in range(3):
@@ -234,16 +235,20 @@ if __name__ == '__main__':
                     'random': randomnumber, 'sourceshift': args.sourceshift, 'hops': 0, 'optimal': args.optimal,
                     'anchor': args.anchor}
         logging.info('Randomseed = ' + str(randomnumber))
-        folderlist = ['test{}'.format(i) for i in range(12)]     # Should be much bigger than number of available cores
+        folderlist = ['test{}'.format(i) for i in range(63)]     # Should be much bigger than number of available cores
         try:
             for element in folderlist:
                 cleanfolder('{}/graph{}/{}'.format(date, i, element))
                 confdict['json'] = '{}/graph{}/test/graph.json'.format(date, i)
-                # confdict['json'] = 'problem.json'
+                confdict['json'] = 'demograph2.json'
                 confdict['folder'] = '{}/graph{}/{}'.format(date, i, element)
-                confdict = setmode(confdict, element[-1])
-                confdict['maxduration'] = 200 * failhist['None'][0]
-                confdict['maxduration'] = 100000
+                try:
+                    x = int(element[-2:])
+                except ValueError:
+                    x = int(element[-1])
+                confdict = setmode(confdict, x)
+                # confdict['maxduration'] = 200 * failhist['None'][0]
+                confdict['maxduration'] = 1000
                 while True:
                     if cpu_count() > len(active_children()):
                         try:

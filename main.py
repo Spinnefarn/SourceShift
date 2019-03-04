@@ -63,8 +63,8 @@ def parse_args():
                         type=bool,
                         help='Use MORE but recalculate in case of failure.',
                         default=False)
-    parser.add_argument('-ns', '--nomore',
-                        dest='newshift',
+    parser.add_argument('-no', '--nomore',
+                        dest='nomore',
                         type=bool,
                         help='Enable new shifting, means enhanced version of source shift',
                         default=False)

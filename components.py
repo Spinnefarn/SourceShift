@@ -66,6 +66,7 @@ class Node:
         self.credit = 0.
         self.complete = (name == 'S')
         self.trash = []
+        self.sent = False
         self.working = True
         self.realtrash = []
         self.priority = 0.
@@ -100,6 +101,7 @@ class Node:
         if self.name == 'D':  # Make sure destination will never send a packet
             return None
         elif self.name == 'S' or self.creditcounter > 0:
+            self.sent = True
             # self.sendhistory.append((self.batch, self.coder.rank(), self.coder.write_payload()))
             # return self.sendhistory[-1][-1]
             return self.coder.write_payload()
@@ -147,7 +149,7 @@ class Node:
 
     def getsent(self):
         """Return True if the node sent at least once."""
-        return len(self.sendhistory) != 0
+        return self.sent
 
     def gettrash(self, maxts):
         """Return trash."""
@@ -185,6 +187,7 @@ class Node:
                 continue
             elif batch > self.batch or not self.coder.rank():  # Delete it if you're working on deprecated batch
                 self.batch = batch
+                self.sent = False
                 self.coder = self.factory.build()
                 self.data = bytearray(self.coder.block_size())
                 self.coder.set_mutable_symbols(self.data)
@@ -194,7 +197,7 @@ class Node:
                 self.creditcounter = 0.
                 if self.quiet:
                     self.quiet = False
-                if special and self.credit == 0:
+                if special and not self.credit:
                     self.creditcounter += 1
             else:  # Just add new information if its new
                 if not self.coder.is_complete():
@@ -202,10 +205,10 @@ class Node:
                     newrank = self.coder.rank()
                 else:
                     newrank = self.rank       # Full coder does not get new information
-                if self.rank < newrank:
+                if self.rank <= newrank:
                     self.rank = newrank
                     self.complete = self.coder.is_complete()
-                    if special and self.credit == 0:
+                    if special and not self.credit:
                         self.creditcounter += 1
                 elif self.trtrash:      # Just log trash if wished
                     if preveotx > self.eotx or (self.priority != 0. and self.priority > preveotx):

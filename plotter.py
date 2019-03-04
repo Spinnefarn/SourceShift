@@ -87,7 +87,7 @@ def getairtime(mainfolder=None, folders=None, plotfail='all'):
         failures |= {fail for fail in plots[protocol]}
     for fail in failures:
         for protocol in plots:
-            if fail not in plots[protocol].keys():
+            if not plots[protocol][fail]:
                 plots[protocol][fail] = plots[protocol]['None']
                 std[protocol][fail] = std[protocol]['None']
     plotlist, stdlist = {}, {}
@@ -98,7 +98,7 @@ def getairtime(mainfolder=None, folders=None, plotfail='all'):
 
 
 # noinspection PyTypeChecker
-def getairtimemode(mainfolder=None, folders=None, mode='perhop', plotfail='all'):
+def getairtimemode(mainfolder=None, folders=None, mode='perhop', plotfail='all', box=False):
     """Get parsed values and do statistics with it."""
     if folders is None:
         quit(1)
@@ -186,10 +186,25 @@ def getairtimemode(mainfolder=None, folders=None, mode='perhop', plotfail='all')
         if protocol not in plotlist.keys():
             plotlist[protocol], stdlist[protocol] = {}, {}
         for steps in plots[protocol]:
-            plotlist[protocol][steps] = statistics.mean(plots[protocol][steps].values())
-            stdlist[protocol][steps] = statistics.mean(std[protocol][steps].values())
-        plist[protocol] = [plotlist[protocol][key] for key in sorted(plotlist[protocol].keys())]
-        slist[protocol] = [stdlist[protocol][key] for key in sorted(stdlist[protocol].keys())]
+            if box:
+                if steps not in plotlist[protocol].keys():
+                    plotlist[protocol][steps] = []
+                for fail in plots[protocol][steps].keys():
+                    plotlist[protocol][steps].append(plots[protocol][steps][fail])
+            else:
+                plotlist[protocol][steps] = statistics.mean(plots[protocol][steps].values())
+                stdlist[protocol][steps] = statistics.mean(std[protocol][steps].values())
+        if not box:
+            plist[protocol] = [plotlist[protocol][key] for key in sorted(plotlist[protocol].keys())]
+            slist[protocol] = [stdlist[protocol][key] for key in sorted(stdlist[protocol].keys())]
+        else:
+            if protocol not in plist.keys():
+                plist[protocol] = []
+            if mode != 'perhop':
+                for step in plotlist[protocol].keys():
+                    plist[protocol].extend(plotlist[protocol][step])
+            else:
+                plist[protocol] = plotlist[protocol]
     return sorted(stepset), plist, slist
 
 
@@ -252,7 +267,7 @@ def getfailhist(mainfolder=None, folders=None, plotfail='all'):
         failures |= {fail for fail in plots[protocol]}
     for fail in failures:
         for protocol in plots:
-            if fail not in plots[protocol].keys():
+            if not plots[protocol][fail]:
                 plots[protocol][fail] = plots[protocol]['None']
                 std[protocol][fail] = std[protocol]['None']
     plotlist, stdlist = {}, {}
@@ -263,7 +278,7 @@ def getfailhist(mainfolder=None, folders=None, plotfail='all'):
 
 
 # noinspection PyTypeChecker
-def getfailhistmode(mainfolder=None, folders=None, mode='perhop', plotfail='all'):
+def getfailhistmode(mainfolder=None, folders=None, mode='perhop', plotfail='all', box=False):
     """Get parsed values and do statistics with it."""
     if folders is None:
         quit(1)
@@ -342,7 +357,8 @@ def getfailhistmode(mainfolder=None, folders=None, mode='perhop', plotfail='all'
         if protocol not in plots.keys():
             plots[protocol], std[protocol] = {}, {}
         for steps in dic.keys():
-            plots[protocol][steps], std[protocol][steps] = parsefail(dic[steps], plotfail=plotfail)
+            bmode = 'box' if box else 'regular'
+            plots[protocol][steps], std[protocol][steps] = parsefail(dic[steps], plotfail=plotfail, mode=bmode)
         stepset |= {key for key in plots[protocol].keys()}
     plotlist, stdlist = {}, {}
     plist, slist = {}, {}
@@ -350,10 +366,25 @@ def getfailhistmode(mainfolder=None, folders=None, mode='perhop', plotfail='all'
         if protocol not in plotlist.keys():
             plotlist[protocol], stdlist[protocol] = {}, {}
         for steps in plots[protocol]:
-            plotlist[protocol][steps] = statistics.mean(plots[protocol][steps].values())
-            stdlist[protocol][steps] = statistics.mean(std[protocol][steps].values())
-        plist[protocol] = [plotlist[protocol][key] for key in sorted(plotlist[protocol].keys())]
-        slist[protocol] = [stdlist[protocol][key] for key in sorted(stdlist[protocol].keys())]
+            if box:
+                if steps not in plotlist[protocol].keys():
+                    plotlist[protocol][steps] = []
+                for fail in plots[protocol][steps].keys():
+                    plotlist[protocol][steps].extend(plots[protocol][steps][fail])
+            else:
+                plotlist[protocol][steps] = statistics.mean(plots[protocol][steps].values())
+                stdlist[protocol][steps] = statistics.mean(std[protocol][steps].values())
+        if not box:
+            plist[protocol] = [plotlist[protocol][key] for key in sorted(plotlist[protocol].keys())]
+            slist[protocol] = [stdlist[protocol][key] for key in sorted(stdlist[protocol].keys())]
+        else:
+            if protocol not in plist.keys():
+                plist[protocol] = []
+            if mode != 'perhop':
+                for step in plotlist[protocol].keys():
+                    plist[protocol].extend(plotlist[protocol][step])
+            else:
+                plist[protocol] = plotlist[protocol]
     return sorted(stepset), plist, slist, config
 
 
@@ -430,7 +461,7 @@ def getopt(mainfolder=None, folders=None, plotfail='all'):
     return plotlist
 
 
-def parseairtime(dic, plotfail='all'):
+def parseairtime(dic, plotfail='all', mode='regular'):
     """Parse given airtime dict."""
     plot, std = {}, {}
     firstfolder = list(dic.keys())[0]
@@ -443,7 +474,12 @@ def parseairtime(dic, plotfail='all'):
                 counter.append(sum([dic[folder][fail][node] for node in dic[folder][fail].keys()]))
             except KeyError:
                 pass
-        plot[fail] = statistics.mean(counter)
+        if mode == 'regular':
+            plot[fail] = statistics.mean(counter)
+        else:
+            if fail not in plot.keys():
+                plot[fail] = []
+            plot[fail].extend(counter)
         if len(counter) > 1:
             std[fail] = statistics.stdev(counter)
         else:
@@ -451,7 +487,7 @@ def parseairtime(dic, plotfail='all'):
     return plot, std
 
 
-def parsefail(dic, plotfail='all'):
+def parsefail(dic, plotfail='all', mode='regular'):
     """Parse given failhist dict."""
     plotlist, stdlist = {}, {}
     if len(dic) > 1:
@@ -465,7 +501,12 @@ def parsefail(dic, plotfail='all'):
                     counter.append(dic[folder][fail])
                 except KeyError:
                     pass
-            plotlist[fail] = statistics.mean(counter)
+            if mode == 'regular':
+                plotlist[fail] = statistics.mean(counter)
+            else:
+                if fail not in plotlist.keys():
+                    plotlist[fail] = []
+                plotlist[fail].extend(counter)
             if len(counter) > 1:
                 stdlist[fail] = statistics.stdev(counter)
             else:
@@ -548,7 +589,7 @@ def parseaircdf(mainfolder, folders, mode='regular', plotfail='all'):
         for protocol in plots:
             plotlist[protocol] = []
             for fail in failure:
-                if fail in plots[protocol].keys():
+                if fail in plots[protocol].keys() and plots[protocol][fail]:
                     plotlist[protocol].extend(plots[protocol][fail])
                 else:
                     plotlist[protocol].extend(plots[protocol]['None'])
@@ -650,7 +691,7 @@ def parsefailcdf(mainfolder, folders, mode='regular', plotfail='all'):
         for protocol in plots:
             plotlist[protocol] = []
             for fail in failure:
-                if fail in plots[protocol].keys():
+                if fail in plots[protocol].keys() and plots[protocol][fail]:
                     plotlist[protocol].extend(plots[protocol][fail])
                 else:
                     plotlist[protocol].extend(plots[protocol]['None'])
@@ -660,11 +701,11 @@ def parsefailcdf(mainfolder, folders, mode='regular', plotfail='all'):
         for protocol in plots:
             gainlist[protocol] = []
             for fail in failure:
-                if fail in plots[protocol].keys() and len(plots[protocol][fail]):
+                if fail in plots[protocol].keys() and plots[protocol][fail]:
                     proval = statistics.mean(plots[protocol][fail])
                 else:
                     proval = statistics.mean(plots[protocol]['None'])
-                if fail in plots['MORE'].keys() and len(plots['MORE'][fail]):
+                if fail in plots['MORE'].keys() and plots['MORE'][fail]:
                     moreval = statistics.mean(plots['MORE'][fail])
                 else:
                     moreval = statistics.mean(plots['MORE']['None'])
@@ -882,30 +923,31 @@ def plotaircdf(mainfolder=None, folders=None, plotfail='all'):
         mainfolder = ''
     plotlist = parseaircdf(mainfolder, folders, plotfail=plotfail)
     for mode in ['regular', 'close']:
-        if mode == 'regular':
-            p.figure(figsize=(4.2, 6.18))
-        else:
-            p.figure(figsize=(6.18, 4.2))
+        p.figure(figsize=(6.18, 4.2))
         for protocol in sorted(plotlist.keys()):
-            p.plot(sorted(plotlist[protocol]), np.linspace(0, 1, len(plotlist[protocol])), label=protocol, alpha=0.8)
+            if protocol in ['ANChOR', 'MORE', 'MORELESS', 'MOREresilience', 'NOMORE', 'Optimal']:
+                p.plot(sorted(plotlist[protocol]), np.linspace(0, 1, len(plotlist[protocol])), label=protocol,
+                       alpha=0.8)
         if plotfail == 'all':
-            p.title('Used airtime per protocol')
+            p.title('Airtime per protocol')
         else:
-            p.title('Used airtime for {} failure'.format(plotfail))
-        p.ylabel('Fraction of Airtime')
+            p.title('Airtime for {} failure'.format(plotfail))
+        p.ylabel('Fraction')
         p.xlabel('Airtime in transmissions')
         # p.ylim([0.8, 1])
         # p.xlim(left=0)
         p.xscale('log')
-        p.xticks(rotation=90)
-        p.grid(True)
-        p.legend(loc='best')
+        # p.xlim([100, 350])
+        p.grid(True, which='both')
+        # p.minorticks_off()
+        # p.xticks(range(100, 350, 50), range(100, 350, 50), rotation=90)
+        p.legend(loc='lower right')
         p.tight_layout()
         if mode == 'regular':
             p.ylim([0, 1])
             p.savefig('{}/air{}cdf.pdf'.format(mainfolder, plotfail))
         else:
-            p.ylim([0.8, 1])
+            p.ylim([0.9, 1])
             p.savefig('{}/air{}closecdf.pdf'.format(mainfolder, plotfail))
         p.close()
 
@@ -924,31 +966,32 @@ def plotlatcdf(mainfolder=None, folders=None, plotfail='all'):
         mainfolder = ''
     plotlist = parsefailcdf(mainfolder, folders, plotfail=plotfail)
     for mode in ['regular', 'close']:
-        if mode == 'regular':
-            p.figure(figsize=(4.2, 6.18))
-        else:
-            p.figure(figsize=(6.18, 4.2))
+        p.figure(figsize=(6.18, 4.2))
         for protocol in sorted(plotlist.keys()):
-            p.plot(sorted(plotlist[protocol]), np.linspace(0, 1, len(plotlist[protocol])), label=protocol, alpha=0.8)
+            if protocol in ['ANChOR', 'MORE', 'MORELESS', 'MOREresilience', 'NOMORE', 'Optimal']:
+                p.plot(sorted(plotlist[protocol]), np.linspace(0, 1, len(plotlist[protocol])), label=protocol,
+                       alpha=0.8)
         # p.axvline(x=5000, linestyle='--', color='black')
         if plotfail == 'all':
-            p.title('Required latency per protocol')
+            p.title('Latency per protocol')
         else:
-            p.title('Required latency for {} failure'.format(plotfail))
-        p.ylabel('Fraction of Latency')
+            p.title('Latency for {} failure'.format(plotfail))
+        p.ylabel('Fraction')
         p.xlabel('Latency in time slots')
         # p.ylim([0.8, 1])
-        # p.xlim(left=0)
         p.xscale('log')
-        p.xticks(rotation=90)
-        p.grid(True)
-        p.legend(loc='best')
+        p.xlim([400, 100000])
+        # p.yticks(rotation=90)
+        p.grid(True, which='both')
+        # p.minorticks_off()
+        # p.xticks(range(40, 140, 20), range(40, 140, 20), rotation=90)
+        p.legend(loc='lower right')
         p.tight_layout()
         if mode == 'regular':
             p.ylim([0, 1])
             p.savefig('{}/lat{}cdf.pdf'.format(mainfolder, plotfail))
         else:
-            p.ylim([0.8, 1])
+            p.ylim([0.9, 1])
             p.savefig('{}/lat{}closecdf.pdf'.format(mainfolder, plotfail))
         p.close()
 
@@ -964,12 +1007,12 @@ def plotfailhist(mainfolder=None, folders=None):
               error_kw={'elinewidth': width / 3})
     p.legend(loc='best')
     p.yscale('log')
-    p.ylabel('Needed Latency in timeslots')
+    p.ylabel('Latency in timeslots')
     p.xlabel('Failure')
     if config['maxduration']:
         p.ylim(top=config['maxduration'])
     p.xlim([-1, len(failures)])
-    p.title('Needed timeslots over failures for different protocols')
+    p.title('Timeslots over failures for different protocols')
     ind = [x + 0.5 for x in range(len(failures))]
     p.xticks(ind, labels=failures, rotation=90)
     p.grid(True)
@@ -1035,14 +1078,16 @@ def plotgaincdf(mainfolder=None):
             gainlist = parsefailcdf(mainfolder, folders, mode='gain')
         else:
             gainlist = parseaircdf(mainfolder, folders, mode='gain')
-        p.figure(figsize=(4.2, 6.18))
+        p.figure(figsize=(6.18, 4.2))
         for protocol in sorted(gainlist.keys()):
-            p.plot(sorted(gainlist[protocol]), np.linspace(0, 1, len(gainlist[protocol])), label=protocol, alpha=0.8)
+            if protocol in ['ANChOR', 'MORE', 'MORELESS', 'MOREresilience', 'NOMORE', 'Optimal']:
+                p.plot(sorted(gainlist[protocol]), np.linspace(0, 1, len(gainlist[protocol])), label=protocol,
+                       alpha=0.8)
         if mode == 'latency':
             p.title('Difference in latency compared to MORE')
         else:
             p.title('Difference in airtime compared to MORE')
-        p.ylabel('Fraction of Gain')
+        p.ylabel('Fraction')
         p.xlabel('Difference in percent')
         p.ylim([0, 1])
         # p.ylim([0.8, 1])
@@ -1061,8 +1106,8 @@ def plotgraph(folders=None):
     """Plots used and unused network graphs."""
     if folders is None:
         quit(1)
-    p.figure(figsize=(6.18, 6.18))  # Plot graph \textwidth
-    # p.figure(figsize=(3, 3))          # Plot graph to use in subfigure 0.5 * \textwidth
+    # p.figure(figsize=(6.18, 6.18))  # Plot graph \textwidth
+    p.figure(figsize=(3, 3))          # Plot graph to use in subfigure 0.5 * \textwidth
     for folder in folders:
         graph, path, eotx, failhist = readgraph(folder)
         if graph is None or path is None or eotx is None or failhist is None:
@@ -1136,7 +1181,7 @@ def plotopt(mainfolder=None, plotfail='all'):
     p.xlabel('Nodes')
     ind = [x + 0.5 for x in range(len(list(plotlist[list(plotlist.keys())[0]])))]
     p.xticks(ind, labels=list(plotlist[list(plotlist.keys())[0]].keys()))
-    p.title('Needed airtime over nodes, optimal value with failure knowledge and achieved values')
+    p.title('Airtime over nodes, optimal value with failure knowledge and achieved values')
     p.grid(True)
     p.tight_layout()
     p.savefig('{}/airopt{}bar.pdf'.format(mainfolder, plotfail))
@@ -1154,43 +1199,124 @@ def plotperhop(mainfolder=None, kind='perhop'):
                         for subsubfolder in os.listdir('{}/{}'.format(mainfolder, subfolder))
                         if os.path.isdir('{}/{}/{}'.format(mainfolder, subfolder, subsubfolder)) and
                         subsubfolder != 'test'])
-    for mode in ['airtime', 'latency']:
-        if mode == 'latency':
-            steps, plotlist, stdlist, config = getfailhistmode(mainfolder, folders, mode=kind)
+    for mode in ['Airtime', 'Latency']:
+        if mode == 'Latency':
+            steps, plotlist, stdlist, config = getfailhistmode(mainfolder, folders, mode=kind, box=True)
         else:
-            steps, plotlist, stdlist = getairtimemode(mainfolder, folders, mode=kind)
+            steps, plotlist, stdlist = getairtimemode(mainfolder, folders, mode=kind, box=True)
         if not plotlist:
             continue
-        width = 0.9 / len(plotlist.keys())
-        p.figure(figsize=(8.45, 6.18))
-        for protocol in sorted(plotlist.keys()):
-            ind = [x + list(sorted(plotlist.keys())).index(protocol) * width for x in range(len(plotlist[protocol]))]
-            p.bar(ind, plotlist[protocol], width=width, label=protocol, yerr=stdlist[protocol])
-            # error_kw={'elinewidth': width/3})
-        p.legend(loc='best')
-        p.yscale('log')
-        if mode == 'airtime':
-            p.ylabel('Needed airtime in transmissions')
+        cmap = p.cm.get_cmap('tab10')
+        for fliers in [True]:
+            p.figure(figsize=(8.45, 6.18))
+            newlist = {}
+            hoplist = set()
+            for protocol in plotlist.keys():
+                if protocol in ['ANChOR', 'MORE', 'MORELESS', 'MOREresilience', 'NOMORE', 'Optimal']:
+                    if hoplist:
+                        hoplist &= set(plotlist[protocol].keys())
+                    else:
+                        hoplist = set(plotlist[protocol].keys())
+            for protocol in sorted(plotlist.keys()):
+                if protocol in ['ANChOR', 'MORE', 'MORELESS', 'MOREresilience', 'NOMORE', 'Optimal']:
+                    for hop in sorted(plotlist[protocol].keys()):
+                        if hop in hoplist:
+                            if protocol not in newlist.keys():
+                                newlist[protocol] = []
+                            newlist[protocol].append(plotlist[protocol][hop])
+            boxlist = []
+            poslist = [x * 7 + 1 for x in range(10)]
+            for protocol in newlist.keys():
+                boxlist.append(p.boxplot(newlist[protocol], positions=poslist, showfliers=fliers))
+                poslist = [x + 1 for x in poslist]
+            for bp in boxlist:
+                for l, box in enumerate(bp['boxes']):
+                    box.set(color=cmap(l))
+                for l, median in enumerate(bp['medians']):
+                    median.set(color=cmap(l))
+                for l, flier in enumerate(bp['fliers']):
+                    flier.set(marker='x', color=cmap(l), alpha=0.3)
+            p.yscale('log')
+            p.legend([box["boxes"][0] for box in boxlist],
+                     ['ANChOR', 'MORE', 'MORELESS', 'MOREresilience', 'NOMORE', 'Optimal'], loc='best')
+            if mode == 'Airtime':
+                p.ylabel('Airtime in transmissions')
+            else:
+                p.ylabel('Latency in timeslots')
+            if kind == 'perhop':
+                p.xlabel('Minimum amount of hops between Source and Destination')
+            else:
+                p.xlabel('Mincut')
+            # p.ylim(bottom=0)
+            p.xlim([0, 70])
+            p.title('{} over different networks and protocols'.format(mode))
+            # ind = [x + 0.5 for x in range(len(steps))]
+            # p.xticks(ind, labels=steps)
+            p.grid(True)
+            p.tight_layout()
+            name = 'hop' if kind == 'perhop' else 'mcut'
+            if mode == 'Airtime':
+                p.savefig('{}/air{}bar.pdf'.format(mainfolder, name))
+            else:
+                p.savefig('{}/lat{}bar.pdf'.format(mainfolder, name))
+            p.close()
+
+
+def plotbox(mainfolder=None):
+    """Do boxplots."""
+    if mainfolder is None:
+        return
+    folders = []
+    cmain = [folder for folder in os.listdir(mainfolder) if os.path.isdir('{}/{}'.format(mainfolder, folder))]
+    for subfolder in cmain:
+        folders.extend(['{}/{}'.format(subfolder, subsubfolder)
+                        for subsubfolder in os.listdir('{}/{}'.format(mainfolder, subfolder))
+                        if os.path.isdir('{}/{}/{}'.format(mainfolder, subfolder, subsubfolder)) and
+                        subsubfolder != 'test'])
+    p.figure(figsize=(8.45, 6.18))
+    for mode in ['Latency', 'Airtime']:
+        if mode == 'Latency':
+            steps, plotlist, stdlist, config = getfailhistmode(mainfolder, folders, mode='all', box=True)
         else:
-            p.ylabel('Needed latency in timeslots')
-        if kind == 'perhop':
-            p.xlabel('Minimum amount of hops between Source and Destination')
-        else:
-            p.xlabel('Mincut')
-        p.yscale('log')
-        p.ylim(bottom=0)
-        p.xlim([-1, len(steps)])
-        p.title('Needed {} over different networks and protocols'.format(mode))
-        ind = [x + 0.5 for x in range(len(steps))]
-        p.xticks(ind, labels=steps)
-        p.grid(True)
-        p.tight_layout()
-        name = 'hop' if kind == 'perhop' else 'mcut'
-        if mode == 'airtime':
-            p.savefig('{}/air{}bar.pdf'.format(mainfolder, name))
-        else:
-            p.savefig('{}/lat{}bar.pdf'.format(mainfolder, name))
-        p.close()
+            steps, plotlist, stdlist = getairtimemode(mainfolder, folders, mode='all', box=True)
+        if not plotlist:
+            continue
+        cmap = p.cm.get_cmap('tab10')
+        for fliers in [True, False]:
+            bp = p.boxplot([plotlist[protocol] for protocol in sorted(plotlist.keys()) if protocol in ['ANChOR', 'MORE', 'MORELESS', 'MOREresilience', 'NOMORE', 'Optimal']], showfliers=fliers)
+            for l, box in enumerate(bp['boxes']):
+                box.set(color=cmap(l))
+            for l, median in enumerate(bp['medians']):
+                median.set(color=cmap(l))
+            for l, flier in enumerate(bp['fliers']):
+                flier.set(marker='x', color=cmap(l), alpha=0.3)
+            p.yscale('log')
+            if mode == 'Airtime':
+                p.ylabel('Airtime in transmissions')
+            else:
+                p.ylabel('Latency in time slots')
+            p.title('{} over protocols'.format(mode))
+            p.xticks(range(1, 6 + 1), labels=sorted(['ANChOR', 'MORE', 'MORELESS', 'MOREresilience', 'NOMORE', 'Optimal']), rotation=90)
+            # if fliers:
+            #     p.ylim(top=1000)
+            # else:
+            #    p.ylim(top=400)
+            p.grid(True, which='both')
+            # p.minorticks_off()
+            # p.yticks(range(100, 1100, 100), range(100, 1100, 100))
+            p.tight_layout()
+            if mode == 'Airtime':
+                if fliers:
+                    p.savefig('{}/airflierbox.pdf'.format(mainfolder))
+                else:
+                    p.savefig('{}/airbox.pdf'.format(mainfolder))
+            else:
+                if fliers:
+                    p.savefig('{}/latflierbox.pdf'.format(mainfolder))
+                else:
+                    p.savefig('{}/latbox.pdf'.format(mainfolder))
+            p.clf()
+    p.close()
 
 
 def plotqq(mainfolder=None):
@@ -1212,11 +1338,12 @@ def plotqq(mainfolder=None):
         # result = stats.mannwhitneyu(plotlist[0][protocol], plotlist[1][protocol])
         # result = stats.ranksums(plotlist[0][protocol], plotlist[1][protocol])
         logging.info('KS 2Samp for {} is {}'.format(protocol,   # dist unequal if p < 1% | equal if p > 10%
-                                                    stats.ks_2samp(plotlist[0][protocol], plotlist[1][protocol])))
+                                                    stats.anderson_ksamp(
+                                                        [plotlist[0][protocol], plotlist[1][protocol]])))
         # p.plot(sorted(plotlist[0][protocol]), np.linspace(0, 1, len(plotlist[0][protocol])),
         #       label=protocol, alpha=0.8)
     # p.title('Needed latency per protocol')
-    # p.ylabel('Fraction of Latency')
+    # p.ylabel('Fraction')
     # p.xlabel('Latency in timeslots')
     # p.ylim([0.8, 1])
     # p.xlim(left=0)
@@ -1250,8 +1377,8 @@ def plottrash(mainfolder=None):
         p.figure(figsize=(6.18, 6.18))
         for protocol in sorted(plotlist.keys()):
             p.plot(list(plotlist[protocol].keys()), list(plotlist[protocol].values()), label=protocol, alpha=0.8)
-        p.title('Incomming trash per protocol')
-        p.ylabel('Total amount of trash per time slots')
+        p.title('Linear dependent packets per protocol')
+        p.ylabel('Total amount of linear dependend packets per time slots')
         p.xlabel('Time slot')
         # p.xlim(left=0)
         # p.ylim(bottom=0)
@@ -1268,7 +1395,7 @@ if __name__ == '__main__':
     logging.basicConfig(filename='plotlog.log', level=logging.DEBUG, filemode='w')
     now = datetime.datetime.now()
     # date = str(int(str(now.year) + str(now.month) + str(now.day)))
-    date = '201928'
+    date = '../2019223'
     folderlist = []
     for i in range(3):
         folderlst = []
@@ -1289,8 +1416,9 @@ if __name__ == '__main__':
     plotaircdf(date)
     plotlatcdf(date)
     plotgaincdf(date)
-    plotperhop(date)
-    plotperhop(date, kind='mcut')
-    # plotqq(['../expdav', '../expnodav'])
+    # plotperhop(date)
+    # plotperhop(date, kind='mcut')
+    # plotqq(['../2019212', '../2019212a'])
     # plottrash(date)
-    plotgraph(folders=folderlist)
+    # plotgraph(folders=folderlist)
+    plotbox(date)
