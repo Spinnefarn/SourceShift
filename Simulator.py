@@ -23,9 +23,10 @@ def readconf(jsonfile):
 
 class Simulator:
     """Round based simulator to simulate traffic in meshed network."""
-    def __init__(self, jsonfile='demograph.json', coding=None, fieldsize=1, sendall=0, own=False, edgefail=None, nodefail=None,
-                 allfail=False, randcof=(20, 0.3), folder='.', maxduration=0, randomseed=None, sourceshift=False,
-                 nomore=False, moreres=False, edgefailprob=0.1, hops=0, optimal=False, trash=False, anchor=False):
+    def __init__(self, jsonfile='demograph.json', coding=None, fieldsize=1, sendall=0, own=False, edgefail=None,
+                 nodefail=None, allfail=False, randcof=(20, 0.3), folder='.', maxduration=0, randomseed=None,
+                 sourceshift=False, nomore=False, moreres=False, edgefailprob=0.1, hops=0, optimal=False, trash=False,
+                 anchor=False):
         self.airtime = {'None': {}}
         self.anchor = anchor
         self.sourceshift = sourceshift
@@ -36,7 +37,6 @@ class Simulator:
         self.nodefail = nodefail
         self.allfail = allfail
         self.edgefailprob = edgefailprob
-        logging.debug('Random seed: '.format(randomseed))
         self.random = randomseed
         self.maxduration = maxduration
         self.eotxdict = {}
@@ -538,9 +538,13 @@ class Simulator:
             for neighbor in self.graph.neighbors(node):
                 if neighbor not in q:
                     continue
-                eotx_t[neighbor] += self.graph.edges[node, neighbor]['weight'] * eotx_p[neighbor] * eotx[node]
-                eotx_p[neighbor] *= (1 - self.graph.edges[node, neighbor]['weight'])
-                eotx[neighbor] = eotx_t[neighbor] / (1 - eotx_p[neighbor])
+                if node != 'S':
+                    eotx_t[neighbor] += self.graph.edges[node, neighbor]['weight'] * eotx_p[neighbor] * eotx[node]
+                    eotx_p[neighbor] *= (1 - self.graph.edges[node, neighbor]['weight'])
+                try:
+                    eotx[neighbor] = eotx_t[neighbor] / (1 - eotx_p[neighbor])
+                except ZeroDivisionError:
+                    continue
                 q[neighbor] = eotx[neighbor]
         return eotx
 
