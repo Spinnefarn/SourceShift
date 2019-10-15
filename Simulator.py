@@ -20,7 +20,6 @@ def readconf(jsonfile):
         else:
             raise FileNotFoundError
 
-
 class Simulator:
     """Round based simulator to simulate traffic in meshed network."""
     def __init__(self, jsonfile='demograph.json', coding=None, fieldsize=1, sendall=0, own=False, edgefail=None,

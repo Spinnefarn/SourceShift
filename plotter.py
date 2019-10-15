@@ -1,11 +1,8 @@
 #!/usr/bin/python
 # coding=utf-8
 """Will collect interesting logs from subfolders and draw plots."""
-from matplotlib import use
-use('Agg')
+
 import matplotlib.pylab as p
-p.rcParams['font.family'] = 'sans-serif'
-p.rcParams['font.size'] = 12
 import numpy as np
 import networkx as nx
 import json
@@ -13,6 +10,7 @@ import os
 import datetime
 import statistics
 import logging
+from tex import setup
 from scipy import stats
 
 
@@ -20,12 +18,14 @@ def drawunused(net=None, pos=None):
     """Draw unused graph."""
     if net is None or pos is None:
         return
-    nx.draw(net, pos=pos, with_labels=True, node_size=1500, node_color="skyblue", node_shape="o",
-            alpha=0.7, linewidths=4, font_size=25, font_color="red", font_weight="bold", width=2,
+    # nx.draw(net, pos=pos, with_labels=True, node_size=1500, node_color="skyblue", node_shape="o",
+    #        alpha=0.7, linewidths=4, font_size=25, font_color="red", font_weight="bold", width=2,
+    nx.draw(net, pos=pos, with_labels=True, node_size=200, node_color="white", node_shape="o",
+            alpha=0.9, linewidths=4, font_size=12, font_color="black", font_weight="bold", width=2,
             edge_color="grey")
-    labels = {x: round(y, 1) for x, y in nx.get_node_attributes(net, 'EOTX').items()}
-    nx.draw_networkx_labels(net, pos=pos, labels=labels)
-    nx.draw_networkx_edge_labels(net, pos=pos, edge_labels=nx.get_edge_attributes(net, 'weight'), font_size=12)
+    # labels = {x: round(y, 1) for x, y in nx.get_node_attributes(net, 'EOTX').items()}
+    # nx.draw_networkx_labels(net, pos=pos, labels=labels)
+    nx.draw_networkx_edge_labels(net, pos=pos, edge_labels=nx.get_edge_attributes(net, 'weight'), font_size=10)
 
 
 # noinspection PyTypeChecker
@@ -215,7 +215,6 @@ def getfailhist(mainfolder=None, folders=None, plotfail='all'):
         quit(1)
     if mainfolder is None:
         mainfolder = ''
-    p.figure(figsize=(20, 10))
     incdicts, config = {}, {}
     for folder in folders:
         try:
@@ -888,7 +887,8 @@ def readtrash(folder, mode='real'):
 
 def plotairtime(mainfolder=None, folders=None):
     """Plot airtime for different failures."""
-    p.figure(figsize=(8.45, 6.18))
+    # p.figure(figsize=(8.45, 6.18))
+    p.figure()
     failures, plotlist, stdlist = getairtime(mainfolder, folders)
     width = 0.9 / len(plotlist.keys())
     for protocol in sorted(plotlist.keys()):
@@ -900,7 +900,7 @@ def plotairtime(mainfolder=None, folders=None):
     p.xlabel('Failure')
     p.yscale('log')
     p.xlim([-1, len(failures)])
-    p.title('Needed transmissions over failures for different protocols')
+    p.title('Needed transmissions over failures for different routing schemes')
     ind = [x + width / 2 for x in range(len(failures))]
     p.xticks(ind, labels=failures, rotation=90)
     p.grid(True)
@@ -923,24 +923,41 @@ def plotaircdf(mainfolder=None, folders=None, plotfail='all'):
         mainfolder = ''
     plotlist = parseaircdf(mainfolder, folders, plotfail=plotfail)
     for mode in ['regular', 'close']:
-        p.figure(figsize=(6.18, 4.2))
-        for protocol in sorted(plotlist.keys()):
-            if protocol in ['ANChOR', 'MORE', 'MORELESS', 'MOREresilience', 'NOMORE', 'Optimal']:
-                p.plot(sorted(plotlist[protocol]), np.linspace(0, 1, len(plotlist[protocol])), label=protocol,
-                       alpha=0.8)
-        if plotfail == 'all':
-            p.title('Airtime per protocol')
-        else:
-            p.title('Airtime for {} failure'.format(plotfail))
+        # p.figure(figsize=(6.18, 4.2))
+        # p.figure(figsize=(4.2, 6))
+        p.figure()
+        dashes = {'Optimal': [4, 2], 'ANChOR': [2, 2], 'MORE': [4, 1, 1, 1], 'Source Shift': [3, 1],
+                  'MOREresilience': [1, 1, 2, 1]}
+        cmap = p.cm.get_cmap('tab10')
+        clist = [cmap(j) for j in range(len(plotlist.keys()))]
+        colors = {name: color for name, color in zip(sorted(plotlist.keys()), clist)}
+        protocols = [x for x in ['ANChOR', 'Source Shift', 'Optimal', 'MOREresilience', 'MORE'] if x in plotlist.keys()]
+        for protocol in protocols:
+            # if protocol in ['ANChOR', 'MORE', 'MORELESS', 'MOREresilience', 'NOMORE', 'Optimal']:
+            if protocol in ['ANChOR', 'MORE', 'MOREresilience']:
+                line = p.plot(sorted(plotlist[protocol]), np.linspace(0, 1, len(plotlist[protocol])), '--',
+                              color=colors[protocol], label=protocol, alpha=0.8)
+            elif protocol in ['Source Shift']:
+                line = p.plot(sorted(plotlist[protocol]), np.linspace(0, 1, len(plotlist[protocol])), '--',
+                              color=colors[protocol], label='SourceShift', alpha=0.8)
+            elif protocol in ['Optimal']:
+                line = p.plot(sorted(plotlist[protocol]), np.linspace(0, 1, len(plotlist[protocol])), '--',
+                              color=colors[protocol], label='AMORE', alpha=0.8)
+            line[0].set_dashes(dashes[protocol])
+        # if plotfail == 'all':
+        #    p.title('Airtime per routing scheme')
+        # else:
+        #    p.title('Airtime for {} failure'.format(plotfail))
         p.ylabel('Fraction')
         p.xlabel('Airtime in transmissions')
         # p.ylim([0.8, 1])
-        # p.xlim(left=0)
+        p.xlim([40, 100000])
+        # p.xlim([40, 1000])
         p.xscale('log')
-        # p.xlim([100, 350])
+        # p.xlim([40, 200])
         p.grid(True, which='both')
         # p.minorticks_off()
-        # p.xticks(range(100, 350, 50), range(100, 350, 50), rotation=90)
+        # p.xticks(range(40, 200, 50), range(40, 200, 50), rotation=90)
         p.legend(loc='lower right')
         p.tight_layout()
         if mode == 'regular':
@@ -966,31 +983,39 @@ def plotlatcdf(mainfolder=None, folders=None, plotfail='all'):
         mainfolder = ''
     plotlist = parsefailcdf(mainfolder, folders, plotfail=plotfail)
     for mode in ['regular', 'close']:
-        p.figure(figsize=(6.18, 4.2))
+        # p.figure(figsize=(6.18, 4.2))
+        # p.figure(figsize=(4.2, 6))
+        p.figure()
         for protocol in sorted(plotlist.keys()):
-            if protocol in ['ANChOR', 'MORE', 'MORELESS', 'MOREresilience', 'NOMORE', 'Optimal']:
+            # if protocol in ['ANChOR', 'MORE', 'MORELESS', 'MOREresilience', 'NOMORE', 'Optimal']:
+            if protocol in ['ANChOR', 'MORE', 'MOREresilience', 'Source Shift', 'Optimal']:
                 p.plot(sorted(plotlist[protocol]), np.linspace(0, 1, len(plotlist[protocol])), label=protocol,
                        alpha=0.8)
         # p.axvline(x=5000, linestyle='--', color='black')
-        if plotfail == 'all':
-            p.title('Latency per protocol')
-        else:
-            p.title('Latency for {} failure'.format(plotfail))
+        # if plotfail == 'all':
+        #    p.title('Latency per routing scheme')
+        # else:
+        #    p.title('Latency for {} failure'.format(plotfail))
         p.ylabel('Fraction')
         p.xlabel('Latency in time slots')
         # p.ylim([0.8, 1])
         p.xscale('log')
-        p.xlim([400, 100000])
+        # p.xlim([10, 100000])
+        # p.xlim([40, 2000])
+        # p.xlim([40, 140])
         # p.yticks(rotation=90)
-        p.grid(True, which='both')
+        p.grid(True)
         # p.minorticks_off()
         # p.xticks(range(40, 140, 20), range(40, 140, 20), rotation=90)
-        p.legend(loc='lower right')
         p.tight_layout()
         if mode == 'regular':
+            # p.legend(loc='lower right')
+            p.legend(loc='best')
             p.ylim([0, 1])
             p.savefig('{}/lat{}cdf.pdf'.format(mainfolder, plotfail))
         else:
+            # p.legend(loc='lower left')
+            p.legend(loc='best')
             p.ylim([0.9, 1])
             p.savefig('{}/lat{}closecdf.pdf'.format(mainfolder, plotfail))
         p.close()
@@ -1000,7 +1025,8 @@ def plotfailhist(mainfolder=None, folders=None):
     """Plot time to finish transmission diagram to compare different simulations."""
     failures, plotlist, stdlist, config = getfailhist(mainfolder, folders)
     width = 0.9 / len(plotlist.keys())
-    p.figure(figsize=(8.45, 6.18))
+    # p.figure(figsize=(8.45, 6.18))
+    p.figure()
     for protocol in sorted(plotlist.keys()):
         ind = [x + list(sorted(plotlist.keys())).index(protocol) * width for x in range(len(failures))]
         p.bar(ind, plotlist[protocol], width=width, label=protocol, yerr=stdlist[protocol],
@@ -1012,7 +1038,7 @@ def plotfailhist(mainfolder=None, folders=None):
     if config['maxduration']:
         p.ylim(top=config['maxduration'])
     p.xlim([-1, len(failures)])
-    p.title('Timeslots over failures for different protocols')
+    p.title('Timeslots over failures for different routing schemes')
     ind = [x + 0.5 for x in range(len(failures))]
     p.xticks(ind, labels=failures, rotation=90)
     p.grid(True)
@@ -1036,17 +1062,18 @@ def plotgain(mainfolder=None, folders=None):
                                                           for j in range(len(failures))])
                 except KeyError:
                     logging.info('Not able to plot gain')
-                    return      # Could happen in case of uncomplete logs like when plotting while simulating
-        p.figure(figsize=(5, 5))
+                    return  # Could happen in case of uncomplete logs like when plotting while simulating
+        # p.figure(figsize=(5, 5))
+        p.figure()
         width = 0.9 / len(plotlist.keys())
         # for protocol in gainlist:
         #    ind = [x + list(sorted(plotlist.keys())).index(protocol) * width for x in range(len(failures))]
         p.bar(range(len(gainlist.keys())), gainlist.values(), width=width)
         # p.legend(loc='best')
-        if mode == 'latency':
-            p.title('Latency compared to MORE')
-        else:
-            p.title('Airtime compared to MORE')
+        # if mode == 'latency':
+        #    p.title('Latency compared to MORE')
+        # else:
+        #    p.title('Airtime compared to MORE')
         p.ylim([-100, 100])
         p.ylabel('Mean relative difference [%]')
         # p.xlim([-1, len(failures)])
@@ -1078,15 +1105,29 @@ def plotgaincdf(mainfolder=None):
             gainlist = parsefailcdf(mainfolder, folders, mode='gain')
         else:
             gainlist = parseaircdf(mainfolder, folders, mode='gain')
-        p.figure(figsize=(6.18, 4.2))
-        for protocol in sorted(gainlist.keys()):
-            if protocol in ['ANChOR', 'MORE', 'MORELESS', 'MOREresilience', 'NOMORE', 'Optimal']:
-                p.plot(sorted(gainlist[protocol]), np.linspace(0, 1, len(gainlist[protocol])), label=protocol,
-                       alpha=0.8)
-        if mode == 'latency':
-            p.title('Difference in latency compared to MORE')
-        else:
-            p.title('Difference in airtime compared to MORE')
+        # p.figure(figsize=(6.18, 4.2))
+        p.figure()
+        dashes = {'Optimal': [4, 2], 'ANChOR': [2, 2], 'MORE': [4, 1, 1, 1], 'Source Shift': [3, 1],
+                  'MOREresilience': [1, 1, 2, 1]}
+        cmap = p.cm.get_cmap('tab10')
+        clist = [cmap(j) for j in range(len(gainlist.keys()))]
+        colors = {name: color for name, color in zip(sorted(gainlist.keys()), clist)}
+        protocols = [x for x in ['Source Shift', 'Optimal', 'ANChOR', 'MOREresilience', 'MORE'] if x in gainlist.keys()]
+        for protocol in protocols:
+            if protocol in ['ANChOR', 'MORE', 'MOREresilience', 'Source Shift']:
+                line = p.plot(sorted(gainlist[protocol]), np.linspace(0, 1, len(gainlist[protocol])), '--',
+                              color=colors[protocol], label=protocol, alpha=0.8)
+            elif protocol in ['Optimal']:
+                line = p.plot(sorted(gainlist[protocol]), np.linspace(0, 1, len(gainlist[protocol])), '--',
+                              color=colors[protocol], label='SorceShift', alpha=0.8)
+            elif protocol in ['Optimal']:
+                line = p.plot(sorted(gainlist[protocol]), np.linspace(0, 1, len(gainlist[protocol])), '--',
+                              color=colors[protocol], label='AMORE', alpha=0.8)
+            line[0].set_dashes(dashes[protocol])
+        # if mode == 'latency':
+        #    p.title('Difference in latency compared to MORE')
+        # else:
+        #    p.title('Difference in airtime compared to MORE')
         p.ylabel('Fraction')
         p.xlabel('Difference in percent')
         p.ylim([0, 1])
@@ -1107,7 +1148,7 @@ def plotgraph(folders=None):
     if folders is None:
         quit(1)
     # p.figure(figsize=(6.18, 6.18))  # Plot graph \textwidth
-    p.figure(figsize=(3, 3))          # Plot graph to use in subfigure 0.5 * \textwidth
+    p.figure()  # Plot graph to use in subfigure 0.5 * \textwidth
     for folder in folders:
         graph, path, eotx, failhist = readgraph(folder)
         if graph is None or path is None or eotx is None or failhist is None:
@@ -1151,7 +1192,8 @@ def plotgraph(folders=None):
                 p.savefig('{}/graph.pdf'.format(folder))  # Save it once without purple
             alphaval = 1 / max([value for value in path[fail].values()])
             for edge in path[fail].keys():
-                nx.draw_networkx_edges(net, pos=pos, edgelist=[(edge[0], edge[1])], width=8,
+                nx.draw_networkx_edges(net, pos=pos, edgelist=[(edge[0], edge[1])], width=5,
+                                       # nx.draw_networkx_edges(net, pos=pos, edgelist=[(edge[0], edge[1])], width=8,
                                        alpha=path[fail][edge] * alphaval, edge_color='purple')
             p.savefig('{}/graphfail{}.pdf'.format(folder, fail))
             p.clf()
@@ -1171,7 +1213,8 @@ def plotopt(mainfolder=None, plotfail='all'):
                         subsubfolder != 'test'])
     plotlist = getopt(mainfolder, folders, plotfail=plotfail)
     width = 0.9 / len(plotlist.keys())
-    p.figure(figsize=(20, 8.4))
+    # p.figure(figsize=(20, 8.4))
+    p.figure()
     for protocol in plotlist.keys():
         ind = [x + list(sorted(plotlist.keys())).index(protocol) * width for x in range(len(plotlist[protocol]))]
         p.bar(ind, plotlist[protocol].values(), width=width, label=protocol)
@@ -1208,17 +1251,18 @@ def plotperhop(mainfolder=None, kind='perhop'):
             continue
         cmap = p.cm.get_cmap('tab10')
         for fliers in [True]:
-            p.figure(figsize=(8.45, 6.18))
+            # p.figure(figsize=(8.45, 6.18))
+            p.figure()
             newlist = {}
             hoplist = set()
             for protocol in plotlist.keys():
-                if protocol in ['ANChOR', 'MORE', 'MORELESS', 'MOREresilience', 'NOMORE', 'Optimal']:
+                if protocol in ['ANChOR', 'MORE', 'MOREresilience', 'Source Shift', 'Optimal']:
                     if hoplist:
                         hoplist &= set(plotlist[protocol].keys())
                     else:
                         hoplist = set(plotlist[protocol].keys())
             for protocol in sorted(plotlist.keys()):
-                if protocol in ['ANChOR', 'MORE', 'MORELESS', 'MOREresilience', 'NOMORE', 'Optimal']:
+                if protocol in ['ANChOR', 'MORE', 'MOREresilience', 'Source Shift', 'Optimal']:
                     for hop in sorted(plotlist[protocol].keys()):
                         if hop in hoplist:
                             if protocol not in newlist.keys():
@@ -1249,7 +1293,7 @@ def plotperhop(mainfolder=None, kind='perhop'):
                 p.xlabel('Mincut')
             # p.ylim(bottom=0)
             p.xlim([0, 70])
-            p.title('{} over different networks and protocols'.format(mode))
+            p.title('{} over different networks and routing schemes'.format(mode))
             # ind = [x + 0.5 for x in range(len(steps))]
             # p.xticks(ind, labels=steps)
             p.grid(True)
@@ -1273,7 +1317,8 @@ def plotbox(mainfolder=None):
                         for subsubfolder in os.listdir('{}/{}'.format(mainfolder, subfolder))
                         if os.path.isdir('{}/{}/{}'.format(mainfolder, subfolder, subsubfolder)) and
                         subsubfolder != 'test'])
-    p.figure(figsize=(8.45, 6.18))
+    # p.figure(figsize=(8.45, 6.18))
+    p.figure()
     for mode in ['Latency', 'Airtime']:
         if mode == 'Latency':
             steps, plotlist, stdlist, config = getfailhistmode(mainfolder, folders, mode='all', box=True)
@@ -1283,7 +1328,9 @@ def plotbox(mainfolder=None):
             continue
         cmap = p.cm.get_cmap('tab10')
         for fliers in [True, False]:
-            bp = p.boxplot([plotlist[protocol] for protocol in sorted(plotlist.keys()) if protocol in ['ANChOR', 'MORE', 'MORELESS', 'MOREresilience', 'NOMORE', 'Optimal']], showfliers=fliers)
+            bp = p.boxplot([plotlist[protocol] for protocol in sorted(plotlist.keys()) if
+                            protocol in ['ANChOR', 'MORE', 'MOREresilience', 'Source Shift', 'Optimal']],
+                           showfliers=fliers)
             for l, box in enumerate(bp['boxes']):
                 box.set(color=cmap(l))
             for l, median in enumerate(bp['medians']):
@@ -1295,15 +1342,18 @@ def plotbox(mainfolder=None):
                 p.ylabel('Airtime in transmissions')
             else:
                 p.ylabel('Latency in time slots')
-            p.title('{} over protocols'.format(mode))
-            p.xticks(range(1, 6 + 1), labels=sorted(['ANChOR', 'MORE', 'MORELESS', 'MOREresilience', 'NOMORE', 'Optimal']), rotation=90)
+            # p.title('{} over routing schemes'.format(mode))
+            p.xticks(range(1, 6 + 1),
+                     labels=sorted(['ANChOR', 'MORE', 'MOREresilience', 'Source Shift', 'Optimal']), rotation=45)
             # if fliers:
-            #     p.ylim(top=1000)
+            #    p.ylim(top=1000)
+            #    p.yticks(range(100, 1100, 100), range(100, 1100, 100))
             # else:
             #    p.ylim(top=400)
-            p.grid(True, which='both')
+            #    p.yticks(range(100, 450, 50), range(100, 450, 50))
+            p.grid(True)
             # p.minorticks_off()
-            # p.yticks(range(100, 1100, 100), range(100, 1100, 100))
+            # p.ylim(top=100000)
             p.tight_layout()
             if mode == 'Airtime':
                 if fliers:
@@ -1337,12 +1387,11 @@ def plotqq(mainfolder=None):
     for protocol in sorted(plotlist[0].keys()):
         # result = stats.mannwhitneyu(plotlist[0][protocol], plotlist[1][protocol])
         # result = stats.ranksums(plotlist[0][protocol], plotlist[1][protocol])
-        logging.info('KS 2Samp for {} is {}'.format(protocol,   # dist unequal if p < 1% | equal if p > 10%
+        logging.info('KS 2Samp for {} is {}'.format(protocol,  # dist unequal if p < 1% | equal if p > 10%
                                                     stats.anderson_ksamp(
                                                         [plotlist[0][protocol], plotlist[1][protocol]])))
         # p.plot(sorted(plotlist[0][protocol]), np.linspace(0, 1, len(plotlist[0][protocol])),
         #       label=protocol, alpha=0.8)
-    # p.title('Needed latency per protocol')
     # p.ylabel('Fraction')
     # p.xlabel('Latency in timeslots')
     # p.ylim([0.8, 1])
@@ -1374,10 +1423,11 @@ def plottrash(mainfolder=None):
         except AttributeError:
             logging.warning('Old log format in {}'.format(mainfolder))
             return
-        p.figure(figsize=(6.18, 6.18))
+        # p.figure(figsize=(6.18, 6.18))
+        p.figure()
         for protocol in sorted(plotlist.keys()):
             p.plot(list(plotlist[protocol].keys()), list(plotlist[protocol].values()), label=protocol, alpha=0.8)
-        p.title('Linear dependent packets per protocol')
+        p.title('Linear dependent packets per routing scheme')
         p.ylabel('Total amount of linear dependend packets per time slots')
         p.xlabel('Time slot')
         # p.xlim(left=0)
@@ -1392,15 +1442,16 @@ def plottrash(mainfolder=None):
 
 
 if __name__ == '__main__':
-    logging.basicConfig(filename='plotlog.log', level=logging.DEBUG, filemode='w')
+    setup()
+    logging.basicConfig(filename='plotlog.log', level=logging.INFO, filemode='w')
     now = datetime.datetime.now()
     # date = str(int(str(now.year) + str(now.month) + str(now.day)))
-    date = '../2019223'
+    date = '../2019223sa1'
     folderlist = []
-    for i in range(3):
+    for i in range(50):
         folderlst = []
         # folderlist.append('{}/graph{}/test'.format(date, i))
-        folderlist.extend(['{}/graph{}/test{}'.format(date, i, j) for j in range(100)])
+        folderlist.extend(['{}/graph{}/test{}'.format(date, i, j) for j in range(10)])
         mfolder = '{}/graph{}'.format(date, i)
         # folderlst.append('test'.format(i))
         folderlst.extend(['test{}'.format(j) for j in range(10)])
@@ -1409,8 +1460,8 @@ if __name__ == '__main__':
         # plotairtime(mfolder, folderlst)
         # plotgain(mfolder, folderlst)
         # plotfailhist(mfolder, folderlst)
-    # plotopt(date)
-    # plotopt(date, plotfail='None')
+    #    plotopt(date)
+    #    plotopt(date, plotfail='None')
     plotaircdf(date, plotfail='None')
     plotlatcdf(date, plotfail='None')
     plotaircdf(date)
@@ -1421,4 +1472,5 @@ if __name__ == '__main__':
     # plotqq(['../2019212', '../2019212a'])
     # plottrash(date)
     # plotgraph(folders=folderlist)
+    # plotgraph(date)
     plotbox(date)

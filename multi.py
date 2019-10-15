@@ -208,7 +208,6 @@ if __name__ == '__main__':
         filemode='w')
     now = datetime.datetime.now()
     date = str(now.year) + str(now.month) + str(now.day)
-    date = '../expnodav'
     plot, plotconf = None, None
     processes = []
     for i in range(3):
@@ -240,15 +239,13 @@ if __name__ == '__main__':
             for element in folderlist:
                 cleanfolder('{}/graph{}/{}'.format(date, i, element))
                 confdict['json'] = '{}/graph{}/test/graph.json'.format(date, i)
-                confdict['json'] = 'demograph2.json'
                 confdict['folder'] = '{}/graph{}/{}'.format(date, i, element)
                 try:
                     x = int(element[-2:])
                 except ValueError:
                     x = int(element[-1])
                 confdict = setmode(confdict, x)
-                # confdict['maxduration'] = 200 * failhist['None'][0]
-                confdict['maxduration'] = 1000
+                confdict['maxduration'] = 100000
                 while True:
                     if cpu_count() > len(active_children()):
                         try:
@@ -263,7 +260,6 @@ if __name__ == '__main__':
         dellist = []
         for j in range(len(processes)):
             if not processes[j].is_alive():
-                # processes[i].close()
                 dellist.append(i)
         while dellist:
             try:
