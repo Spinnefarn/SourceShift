@@ -6,6 +6,7 @@ import time
 import os
 from Simulator import Simulator
 import random
+from multi import runsim
 
 
 def parse_args():
@@ -125,17 +126,5 @@ if __name__ == '__main__':
                     allfail=args.failall, randcof=args.randomnodes, folder=args.folder,
                     maxduration=args.maxduration, randomseed=randomnumber, sourceshift=args.sourceshift,
                     nomore=args.nomore, moreres=args.moreres, hops=5, optimal=args.optimal, anchor=args.anchor)
-    starttime = time.time()
-    complete = False
-    while not complete:
-        beginbatch = time.time()
-        done = False
-        while not done:
-            done = sim.update()
-        logging.info('{:3.0f} Seconds needed'.format(time.time() - beginbatch))
-        complete = sim.newbatch()
-    logging.info('{:3.0f} Seconds needed in total.'.format(time.time() - starttime))
-    # sim.drawtrash()
-    # sim.drawtrash('real')
-    sim.writelogs()
+    runsim(sim=sim)
     logging.info('Total used airtime {}'.format(sim.calcairtime()))

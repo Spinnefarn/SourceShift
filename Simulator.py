@@ -706,8 +706,9 @@ class Simulator:
     def sendsel(self):
         """Just the selected amount of nodes send at one timeslot."""
         goodnodes = [  # goodnodes are nodes which are allowed to send
-            node for node in self.nodes if node.getcredit() > 0. and str(node) != 'D' and not node.getquiet() and
-                                           node.gethealth() and node.getbatch() == self.batch]
+            node for node in self.nodes if
+            node.getcredit() > 0. and str(node) != 'D' and not node.getquiet() and node.gethealth() and
+            node.getbatch() == self.batch]
         maxsend = self.sendam if len(goodnodes) > self.sendam else len(goodnodes)
         for _ in range(maxsend):
             k = random.randint(0, len(goodnodes) - 1)

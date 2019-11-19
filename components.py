@@ -60,7 +60,7 @@ class Node:
     def __str__(self):
         return str(self.name)
 
-    def buffpacket(self, batch=0, coding=None, preveotx=0, prevdeotx=0, special=False, ts=0):
+    def buffpacket(self, batch=0, coding=None, preveotx=0, prevdeotx=0, special=False):  # , ts=0):
         """Buffer incoming packets so they will be received at end of time slot."""
         self.incbuffer.append((batch, coding.copy(), preveotx, prevdeotx, special))
         # self.history.append((batch, coding.copy(), preveotx, prevdeotx, special, ts))
