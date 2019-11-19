@@ -23,6 +23,7 @@ def readconf(jsonfile):
 
 class Simulator:
     """Round based simulator to simulate traffic in meshed network."""
+
     def __init__(self, jsonfile='demograph.json', coding=None, fieldsize=1, sendall=0, own=False, edgefail=None,
                  nodefail=None, allfail=False, randcof=(20, 0.3), folder='.', maxduration=0, randomseed=None,
                  sourceshift=False, nomore=False, moreres=False, edgefailprob=0.1, hops=0, optimal=False, anchor=False):
@@ -76,7 +77,7 @@ class Simulator:
                 if neighbor != 'S':  # Source will not receive a packet, but still written down
                     for name in self.nodes:  # Add received Packet to buffer with coding
                         if str(name) == neighbor:
-                            if name.gethealth():    # Broken nodes should not receive
+                            if name.gethealth():  # Broken nodes should not receive
                                 special = self.checkspecial(node, neighbor) if self.own else False
                                 name.buffpacket(batch=node.getbatch(), coding=packet, preveotx=node.geteotx(),
                                                 prevdeotx=node.getdeotx(), special=special, ts=self.timestamp)
@@ -101,7 +102,7 @@ class Simulator:
             if node == 'D':
                 self.graph.nodes[node]['Priority'] = 1.
             else:
-                self.graph.nodes[node]['Priority'] = 1/len(self.graph.nodes)
+                self.graph.nodes[node]['Priority'] = 1 / len(self.graph.nodes)
             self.graph.nodes[node]['ForwarderList'] = []
         prevdict, currdict = {node: self.graph.nodes[node]['Priority'] for node in self.graph.nodes}, {}
         while prevdict != currdict:
@@ -150,7 +151,7 @@ class Simulator:
             for neighbor in self.graph.neighbors(str(node)):
                 if self.graph.nodes[str(node)]['EOTX'] > self.graph.nodes[neighbor]['EOTX']:
                     x[str(node) + neighbor] = self.z[str(node)] * self.graph.edges[str(node), neighbor]['weight'] * \
-                                       self.calce(str(node), notnode=neighbor)
+                                              self.calce(str(node), notnode=neighbor)
         bestlinks = [edge for edge, edgevalue in x.items() if edgevalue >= self.moreres]
         bestlinks = [(edge[0], edge[1], self.graph.edges[edge[0], edge[1]]['weight']) for edge in bestlinks]
         self.graph.remove_edges_from(bestlinks)
@@ -249,7 +250,7 @@ class Simulator:
         z = []
         try:
             z.append(li / (1 - self.calce(nodename)))
-        except ZeroDivisionError:        # In case removing a link broke the regular connection
+        except ZeroDivisionError:  # In case removing a link broke the regular connection
             pass
         if david:
             try:
@@ -336,17 +337,17 @@ class Simulator:
                             self.graph = nx.relabel_nodes(self.graph, mapping, copy=False)
 
                     return False
-        return True     # Recreate graph as no path with wished length could be found
+        return True  # Recreate graph as no path with wished length could be found
 
     def checkspecial(self, node, neighbor):
         """Return True if node should be able to send over special metric."""
-        for invnei in self.graph.neighbors(neighbor):   # Don't think your source is a different way
+        for invnei in self.graph.neighbors(neighbor):  # Don't think your source is a different way
             if self.graph.nodes[neighbor]['EOTX'] > self.graph.nodes[invnei]['EOTX'] and invnei != str(node):
-                    for invnode in self.nodes:
-                        if str(invnode) == invnei:
-                            if node.getbatch() >= invnode.getbatch() or not invnode.isdone():
-                                return True
-                            break
+                for invnode in self.nodes:
+                    if str(invnode) == invnei:
+                        if node.getbatch() >= invnode.getbatch() or not invnode.isdone():
+                            return True
+                        break
         return False
 
     def checkstate(self):
@@ -520,7 +521,7 @@ class Simulator:
                 self.interesting.append(str(node))
         self.interesting.extend(usededges)
         self.checkconnection(graph=self.createusedgraph())
-        self.checkconnection()      # Fails who break the graph are also not interresting
+        self.checkconnection()  # Fails who break the graph are also not interresting
         logging.debug('Interresting failures are: {}'.format(self.interesting))
 
     def geteotx(self):
@@ -706,7 +707,7 @@ class Simulator:
         """Just the selected amount of nodes send at one timeslot."""
         goodnodes = [  # goodnodes are nodes which are allowed to send
             node for node in self.nodes if node.getcredit() > 0. and str(node) != 'D' and not node.getquiet() and
-            node.gethealth() and node.getbatch() == self.batch]
+                                           node.gethealth() and node.getbatch() == self.batch]
         maxsend = self.sendam if len(goodnodes) > self.sendam else len(goodnodes)
         for _ in range(maxsend):
             k = random.randint(0, len(goodnodes) - 1)
@@ -732,13 +733,13 @@ class Simulator:
             else:
                 self.sendall()
             for node in self.nodes:
-                node.rcvpacket(self.timestamp)
+                node.rcvpacket()
                 if str(node) == 'D':
                     self.done = node.isdone()
                 if node.isdone() and str(node) not in self.donedict and self.batch == node.getbatch():
                     logging.debug('Node {} done at timestep {}'.format(str(node), self.timestamp))
                     self.donedict[str(node)] = self.timestamp
-                self.ranklist[str(node)].append(node.getrank())       # Just for debugging
+                self.ranklist[str(node)].append(node.getrank())  # Just for debugging
             self.timestamp += 1
             if not self.checkduration():
                 return True
@@ -764,7 +765,7 @@ class Simulator:
             json.dump(config, file, indent=4)
         with open('{}/failhist.json'.format(self.folder), 'w') as file:
             json.dump(self.failhist, file)
-        if isinstance(self.prevfail, tuple):        # Repair graph before writing it down
+        if isinstance(self.prevfail, tuple):  # Repair graph before writing it down
             self.graph.edges[self.prevfail[0]]['weight'] = self.prevfail[1]
         elif isinstance(self.prevfail, int):
             # noinspection PyTypeChecker

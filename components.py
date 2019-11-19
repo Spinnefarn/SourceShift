@@ -142,12 +142,12 @@ class Node:
         self.batch += 1
         self.rank = self.coding if self.name == 'S' else 0
         if self.name != 'S':
-            self.coder = kodo.RLNCEncoder(self.field, self.coding, self.symbol_size)
+            self.coder = kodo.RLNCDecoder(self.field, self.coding, self.symbol_size)
             self.data = bytearray(self.coder.block_size())
             self.coder.set_symbols_storage(self.data)
         self.quiet = False
 
-    def rcvpacket(self, timestamp):
+    def rcvpacket(self):
         """Add received Packet to buffer. Do this at end of time slot."""
         while len(self.incbuffer):
             batch, coding, preveotx, prevdeotx, special = self.incbuffer.pop()
