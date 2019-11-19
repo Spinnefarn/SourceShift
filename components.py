@@ -6,20 +6,6 @@ import kodo
 import os
 
 
-def makenice(trash, maxts):
-    """Make trash nice to give back."""
-    x, y = np.unique(trash, return_counts=True)
-    x, y = list(x), list(y)
-    trashdict = dict(zip(x, y))
-    intdict = {}
-    for ts in range(maxts):
-        if ts not in trashdict:
-            intdict[int(ts)] = 0
-        else:
-            intdict[int(ts)] = int(trashdict[ts])
-    return {key: intdict[key] for key in sorted(intdict.keys())}
-
-
 def selfieldsize(fieldsize=2):
     """Chose fieldsize."""
     if fieldsize == 2:
@@ -37,7 +23,7 @@ def selfieldsize(fieldsize=2):
 
 class Node:
     """Representation of a node on the network."""
-    def __init__(self, name='S', coding=None, fieldsize=1, random=None, trash=False):
+    def __init__(self, name='S', coding=None, fieldsize=1, random=None):
         if random is None:
             np.random.seed(1)
         else:
@@ -56,7 +42,6 @@ class Node:
         self.name = name
         self.fieldsize = 2 ** fieldsize
         self.incbuffer = []
-        self.trtrash = trash
         self.coding = coding
         self.symbol_size = symbol_size
         self.batch = 0
@@ -64,11 +49,8 @@ class Node:
         self.deotx = float('inf')
         self.creditcounter = 0. if self.name != 'S' else float('inf')
         self.credit = 0.
-        self.complete = (name == 'S')
-        self.trash = []
         self.sent = False
         self.working = True
-        self.realtrash = []
         self.priority = 0.
         self.quiet = False
         self.history = []
@@ -85,7 +67,7 @@ class Node:
 
     def becomesource(self):
         """Act like source. Will be triggered if all neighbors are complete."""
-        if self.complete or self.creditcounter == 0. or self.credit == 0.:   # Just ignore MORE it it ignores you
+        if self.coder.is_complete() or self.creditcounter == 0. or self.credit == 0.:   # Ignore MORE it it ignores you
             self.creditcounter += 1     # Send next time slot if you should and your done
 
     def fail(self):
@@ -143,17 +125,9 @@ class Node:
         """Return current rank."""
         return self.rank
 
-    def getrealtrash(self, maxts):
-        """Return real interesting trash."""
-        return makenice(self.realtrash, maxts)
-
     def getsent(self):
         """Return True if the node sent at least once."""
         return self.sent
-
-    def gettrash(self, maxts):
-        """Return trash."""
-        return makenice(self.trash, maxts)
 
     def heal(self):
         """Start working or continue if you do already."""
@@ -161,13 +135,11 @@ class Node:
 
     def isdone(self):
         """Return True if able to decode."""
-        self.complete = self.coding == self.rank
-        return self.complete
+        return True if self.name == 'S' else self.coder.is_complete()
 
     def newbatch(self):
         """Make destination awaiting new batch."""
         self.batch += 1
-        self.complete = self.name == 'S'
         self.rank = self.coding if self.name == 'S' else 0
         if self.name != 'S':
             self.coder = kodo.RLNCEncoder(self.field, self.coding, self.symbol_size)
@@ -180,8 +152,6 @@ class Node:
         while len(self.incbuffer):
             batch, coding, preveotx, prevdeotx, special = self.incbuffer.pop()
             if self.name == 'S':  # Cant get new information if you're source
-                if self.trtrash:
-                    self.realtrash.append(timestamp)        # Source never gets useful packet
                 continue
             elif batch < self.batch:
                 continue
@@ -193,7 +163,6 @@ class Node:
                 self.coder.set_symbols_storage(self.data)
                 self.coder.consume_payload(coding)
                 self.rank = self.coder.rank()
-                self.complete = self.coder.is_complete()
                 self.creditcounter = 0.
                 if self.quiet:
                     self.quiet = False
@@ -207,14 +176,8 @@ class Node:
                     newrank = self.rank       # Full coder does not get new information
                 if self.rank <= newrank:
                     self.rank = newrank
-                    self.complete = self.coder.is_complete()
                     if special and not self.credit:
                         self.creditcounter += 1
-                elif self.trtrash:      # Just log trash if wished
-                    if preveotx > self.eotx or (self.priority != 0. and self.priority > preveotx):
-                        self.realtrash.append(timestamp)
-                    else:
-                        self.trash.append(timestamp)
             if preveotx > self.eotx or prevdeotx > self.deotx or (self.priority != 0. and self.priority > preveotx):
                 self.creditcounter += self.credit
 

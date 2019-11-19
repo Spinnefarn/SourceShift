@@ -712,68 +712,6 @@ def parsefailcdf(mainfolder, folders, mode='regular', plotfail='all'):
         return gainlist
 
 
-def parsetrash(mainfolder, folders, mode='real'):
-    """Read and parse trash logs for plotting as cdf."""
-    incdicts = {}
-    for folder in folders:
-        try:
-            trash, config = readtrash('{}/{}'.format(mainfolder, folder), mode=mode)
-        except FileNotFoundError:
-            logging.warning('No trash logs found at {}/{}'.format(mainfolder, folder))
-            continue
-        try:
-            if config['own'] and config['sourceshift']:
-                if 'MORELESS' not in incdicts.keys():
-                    incdicts['MORELESS'] = {}
-                incdicts['MORELESS'][folder] = trash
-            elif config['moreres'] and config['sourceshift']:
-                if 'MORERESS' not in incdicts.keys():
-                    incdicts['MORERESS'] = {}
-                incdicts['MORERESS'][folder] = trash
-            elif config['own']:
-                if 'Send Aback' not in incdicts.keys():
-                    incdicts['Send Aback'] = {}
-                incdicts['Send Aback'][folder] = trash
-            elif config['sourceshift']:
-                if 'Source Shift' not in incdicts.keys():
-                    incdicts['Source Shift'] = {}
-                incdicts['Source Shift'][folder] = trash
-            elif config['moreres']:
-                if 'MOREresilience' not in incdicts.keys():
-                    incdicts['MOREresilience'] = {}
-                incdicts['MOREresilience'][folder] = trash
-            elif config['optimal']:
-                if 'Optimal' not in incdicts.keys():
-                    incdicts['Optimal'] = {}
-                incdicts['Optimal'][folder] = trash
-            elif config['ANChOR']:
-                if 'ANChOR' not in incdicts.keys():
-                    incdicts['ANChOR'] = {}
-                incdicts['ANChOR'][folder] = trash
-            else:
-                if 'MORE' not in incdicts.keys():
-                    incdicts['MORE'] = {}
-                incdicts['MORE'][folder] = trash
-        except KeyError:
-            logging.warning('Uncomplete config in {}'.format(folder))
-    plotlist = {}
-    nodes = {}
-    for protocol in incdicts.keys():
-        plotlist[protocol] = {}
-        nodes[protocol] = set()
-        for folder in incdicts[protocol].keys():
-            nodes[protocol].update(incdicts[protocol][folder])
-            for node in incdicts[protocol][folder].keys():
-                for timestamp in incdicts[protocol][folder][node].keys():
-                    if int(timestamp) not in plotlist[protocol].keys():
-                        plotlist[protocol][int(timestamp)] = \
-                            incdicts[protocol][folder][node][timestamp] / len(incdicts[protocol])
-                    else:
-                        plotlist[protocol][int(timestamp)] += \
-                            incdicts[protocol][folder][node][timestamp] / len(incdicts[protocol])
-    return plotlist
-
-
 def readairtime(folder):
     """Read logs from folder."""
     airtime, config, failhist = None, None, None
@@ -858,31 +796,6 @@ def readgraph(folder):
             except json.decoder.JSONDecodeError:
                 pass
     return graph, path, eotx, failhist
-
-
-def readtrash(folder, mode='real'):
-    """Read trash log."""
-    trash, config = None, None
-    if os.path.exists('{}/{}trash.json'.format(folder, mode)):
-        with open('{}/{}trash.json'.format(folder, mode)) as file:
-            try:
-                trash = json.loads(file.read())
-            except json.decoder.JSONDecodeError:
-                pass
-    if os.path.exists('{}/config.json'.format(folder, mode)):
-        with open('{}/config.json'.format(folder, mode)) as file:
-            try:
-                config = json.loads(file.read())
-                if 'david' in config.keys():
-                    config['moreres'] = config['david']
-                if 'newshift' in config.keys():
-                    config['nomore'] = config['newshift']
-            except json.decoder.JSONDecodeError:
-                pass
-    if trash is None or config is None:
-        raise FileNotFoundError
-    else:
-        return trash, config
 
 
 def plotairtime(mainfolder=None, folders=None):
@@ -1369,78 +1282,6 @@ def plotbox(mainfolder=None):
     p.close()
 
 
-def plotqq(mainfolder=None):
-    """Plot QQDiagramm."""
-    if mainfolder is None or len(mainfolder) != 2:
-        return
-    plotlist = []
-    for x in mainfolder:
-        folders = []
-        cmain = [folder for folder in os.listdir(x) if os.path.isdir('{}/{}'.format(x, folder))]
-        for subfolder in cmain:
-            folders.extend(['{}/{}'.format(subfolder, subsubfolder)
-                            for subsubfolder in os.listdir('{}/{}'.format(x, subfolder))
-                            if os.path.isdir('{}/{}/{}'.format(x, subfolder, subsubfolder)) and subsubfolder != 'test'])
-        plotlist.append(parsefailcdf(x, folders))
-
-    # p.figure(figsize=(4.2, 6.18))
-    for protocol in sorted(plotlist[0].keys()):
-        # result = stats.mannwhitneyu(plotlist[0][protocol], plotlist[1][protocol])
-        # result = stats.ranksums(plotlist[0][protocol], plotlist[1][protocol])
-        logging.info('KS 2Samp for {} is {}'.format(protocol,  # dist unequal if p < 1% | equal if p > 10%
-                                                    stats.anderson_ksamp(
-                                                        [plotlist[0][protocol], plotlist[1][protocol]])))
-        # p.plot(sorted(plotlist[0][protocol]), np.linspace(0, 1, len(plotlist[0][protocol])),
-        #       label=protocol, alpha=0.8)
-    # p.ylabel('Fraction')
-    # p.xlabel('Latency in timeslots')
-    # p.ylim([0.8, 1])
-    # p.xlim(left=0)
-    # p.xscale('log')
-    # p.xticks(rotation=90)
-    # p.grid(True)
-    # p.legend(loc='best')
-    # p.tight_layout()
-    # p.ylim([0, 1])
-    # p.savefig('latencycdf.pdf')
-    # p.close()
-
-
-def plottrash(mainfolder=None):
-    """Plot cdf over incomming trash."""
-    if mainfolder is None:
-        return
-    folders, plotlist = [], {}
-    cmain = [folder for folder in os.listdir(mainfolder) if os.path.isdir('{}/{}'.format(mainfolder, folder))]
-    for subfolder in cmain:
-        folders.extend(['{}/{}'.format(subfolder, subsubfolder)
-                        for subsubfolder in os.listdir('{}/{}'.format(mainfolder, subfolder))
-                        if os.path.isdir('{}/{}/{}'.format(mainfolder, subfolder, subsubfolder)) and
-                        subsubfolder != 'test'])
-    for mode in ['real', 'overhearing']:
-        try:
-            plotlist = parsetrash(mainfolder, folders, mode=mode)
-        except AttributeError:
-            logging.warning('Old log format in {}'.format(mainfolder))
-            return
-        # p.figure(figsize=(6.18, 6.18))
-        p.figure()
-        for protocol in sorted(plotlist.keys()):
-            p.plot(list(plotlist[protocol].keys()), list(plotlist[protocol].values()), label=protocol, alpha=0.8)
-        p.title('Linear dependent packets per routing scheme')
-        p.ylabel('Total amount of linear dependend packets per time slots')
-        p.xlabel('Time slot')
-        # p.xlim(left=0)
-        # p.ylim(bottom=0)
-        p.yscale('log')
-        p.xscale('log')
-        p.grid(True)
-        p.legend(loc='best')
-        p.tight_layout()
-        p.savefig('{}/{}trash.pdf'.format(mainfolder, mode))
-        p.close()
-
-
 if __name__ == '__main__':
     setup()
     logging.basicConfig(filename='plotlog.log', level=logging.INFO, filemode='w')
@@ -1470,7 +1311,6 @@ if __name__ == '__main__':
     # plotperhop(date)
     # plotperhop(date, kind='mcut')
     # plotqq(['../2019212', '../2019212a'])
-    # plottrash(date)
     # plotgraph(folders=folderlist)
     # plotgraph(date)
     plotbox(date)

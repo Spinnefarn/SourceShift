@@ -20,12 +20,12 @@ def readconf(jsonfile):
         else:
             raise FileNotFoundError
 
+
 class Simulator:
     """Round based simulator to simulate traffic in meshed network."""
     def __init__(self, jsonfile='demograph.json', coding=None, fieldsize=1, sendall=0, own=False, edgefail=None,
                  nodefail=None, allfail=False, randcof=(20, 0.3), folder='.', maxduration=0, randomseed=None,
-                 sourceshift=False, nomore=False, moreres=False, edgefailprob=0.1, hops=0, optimal=False, trash=False,
-                 anchor=False):
+                 sourceshift=False, nomore=False, moreres=False, edgefailprob=0.1, hops=0, optimal=False, anchor=False):
         self.airtime = {'None': {}}
         self.anchor = anchor
         self.sourceshift = sourceshift
@@ -40,7 +40,6 @@ class Simulator:
         self.maxduration = maxduration
         self.eotxdict = {}
         self.config = {}
-        self.trash = trash      # Log trash?
         self.graph = None
         self.folder = folder
         self.prevfail = None
@@ -583,8 +582,8 @@ class Simulator:
             self.calceotx()
             credit = self.calc_tx_credit()
             logging.info('Created network from JSON successfully!')
-        self.nodes = [components.Node(name=name, coding=self.coding, fieldsize=self.fieldsize, random=self.random,
-                                      trash=self.trash) for name in self.graph.nodes]
+        self.nodes = [components.Node(name=name, coding=self.coding, fieldsize=self.fieldsize, random=self.random)
+                      for name in self.graph.nodes]
         for node in self.nodes:
             try:
                 node.seteotx(self.graph.nodes[str(node)]['EOTX'])
@@ -763,18 +762,6 @@ class Simulator:
                   'mcut': list(self.mcut), 'optimal': self.optimal, 'ANChOR': self.anchor}
         with open('{}/config.json'.format(self.folder), 'w') as file:
             json.dump(config, file, indent=4)
-        if self.trash:
-            for kind in ['overhearing', 'real']:
-                trashdict = {}
-                for node in self.nodes:
-                    if str(node) != 'S':
-                        if kind == 'real':
-                            trash = node.getrealtrash(self.timestamp)
-                        else:
-                            trash = node.gettrash(self.timestamp)
-                        trashdict[str(node)] = trash
-                with open('{}/{}trash.json'.format(self.folder, kind), 'w') as file:
-                    json.dump(trashdict, file)
         with open('{}/failhist.json'.format(self.folder), 'w') as file:
             json.dump(self.failhist, file)
         if isinstance(self.prevfail, tuple):        # Repair graph before writing it down
