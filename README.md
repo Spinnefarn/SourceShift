@@ -1,5 +1,4 @@
-This project will contain a network graph simulator based on networkx. It will be able to simulate (re)coding
-The written thesis will be at latex.spinnefarn.de 
+This project contains a network graph simulator based on networkx. It is able to simulate (re)coding. This commit contains the state used for an submitted paper.
 
 **components.py**
 - contains the cass Node
