@@ -46,19 +46,19 @@ class Node:
         self.coder = None
         self.field = selfieldsize(2 ** fieldsize)
         if name == 'S':
-            self.factory = kodo.RLNCEncoderFactory(self.field, coding, symbol_size)
-            self.coder = self.factory.build()
+            self.coder = kodo.RLNCEncoder(self.field, coding, symbol_size)
             self.data = bytearray(os.urandom(self.coder.block_size()))
-            self.coder.set_const_symbols(self.data)
+            self.coder.set_symbols_storage(self.data)
         else:
-            self.factory = kodo.RLNCDecoderFactory(self.field, coding, symbol_size)
-            self.coder = self.factory.build()
+            self.coder = kodo.RLNCDecoder(self.field, coding, symbol_size)
             self.data = bytearray(self.coder.block_size())
+            self.coder.set_symbols_storage(self.data)
         self.name = name
         self.fieldsize = 2 ** fieldsize
         self.incbuffer = []
         self.trtrash = trash
         self.coding = coding
+        self.symbol_size = symbol_size
         self.batch = 0
         self.eotx = float('inf')
         self.deotx = float('inf')
@@ -104,7 +104,7 @@ class Node:
             self.sent = True
             # self.sendhistory.append((self.batch, self.coder.rank(), self.coder.write_payload()))
             # return self.sendhistory[-1][-1]
-            return self.coder.write_payload()
+            return self.coder.produce_payload()
         else:
             return None
 
@@ -170,9 +170,9 @@ class Node:
         self.complete = self.name == 'S'
         self.rank = self.coding if self.name == 'S' else 0
         if self.name != 'S':
-            self.coder = self.factory.build()
+            self.coder = kodo.RLNCEncoder(self.field, self.coding, self.symbol_size)
             self.data = bytearray(self.coder.block_size())
-            self.coder.set_mutable_symbols(self.data)
+            self.coder.set_symbols_storage(self.data)
         self.quiet = False
 
     def rcvpacket(self, timestamp):
@@ -188,10 +188,10 @@ class Node:
             elif batch > self.batch or not self.coder.rank():  # Delete it if you're working on deprecated batch
                 self.batch = batch
                 self.sent = False
-                self.coder = self.factory.build()
+                self.coder = kodo.RLNCDecoder(self.field, self.coding, self.symbol_size)
                 self.data = bytearray(self.coder.block_size())
-                self.coder.set_mutable_symbols(self.data)
-                self.coder.read_payload(coding)
+                self.coder.set_symbols_storage(self.data)
+                self.coder.consume_payload(coding)
                 self.rank = self.coder.rank()
                 self.complete = self.coder.is_complete()
                 self.creditcounter = 0.
@@ -201,7 +201,7 @@ class Node:
                     self.creditcounter += 1
             else:  # Just add new information if its new
                 if not self.coder.is_complete():
-                    self.coder.read_payload(coding)
+                    self.coder.consume_payload(coding)
                     newrank = self.coder.rank()
                 else:
                     newrank = self.rank       # Full coder does not get new information
