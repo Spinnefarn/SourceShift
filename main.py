@@ -32,7 +32,7 @@ def parse_args():
                         dest='fieldsize',
                         type=int,
                         help='Fieldsize used for coding. 2 to the power of x, x∈(1, 4, 8, 16)',
-                        default=1)
+                        default=16)
     parser.add_argument('-sa', '--sendamount',
                         dest='sendam',
                         type=int,

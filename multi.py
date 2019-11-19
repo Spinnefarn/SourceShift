@@ -91,7 +91,7 @@ def setmode(config, count):
     return config
 
 
-def plotall(mfolder, counter):  # , liste):
+def plotall(mfolder, counter , liste):
     """Create a process to do the plots."""
     # plotter.plotairtime('{0}/graph{1}'.format(mfolder, counter), liste)
     # plotter.plotfailhist('{0}/graph{1}'.format(mfolder, counter), liste)
@@ -126,7 +126,7 @@ if __name__ == '__main__':
     processes = []
     for i in range(3):
         logging.info('Created new graph at graph{}'.format(i))
-        confdict = {'json': None, 'randconf': (20, 0.3), 'coding': 42, 'fieldsize': 8,
+        confdict = {'json': None, 'randconf': (20, 0.3), 'coding': 42, 'fieldsize': 16,
                     'sendam': 0, 'own': False, 'failedge': None, 'failnode': None,
                     'failall': False, 'folder': '{}/graph{}/test'.format(date, i), 'maxduration': 0,
                     'random': None, 'sourceshift': False, 'nomore': False,

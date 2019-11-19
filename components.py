@@ -17,8 +17,7 @@ def selfieldsize(fieldsize=2):
     elif fieldsize == 16:
         return kodo.field.binary16
     else:
-        import logging
-        logging.error('Unsupported fieldsize {}'.format(fieldsize))
+        raise AttributeError('Unsupported fieldsize {}'.format(fieldsize))
 
 
 class Node:
@@ -30,7 +29,7 @@ class Node:
             np.random.seed(random)
         symbol_size = 8
         self.coder = None
-        self.field = selfieldsize(2 ** fieldsize)
+        self.field = selfieldsize(fieldsize)
         if name == 'S':
             self.coder = kodo.RLNCEncoder(self.field, coding, symbol_size)
             self.data = bytearray(os.urandom(self.coder.block_size()))
@@ -56,6 +55,7 @@ class Node:
         self.history = []
         self.sendhistory = []
         self.rank = 0 if self.name != 'S' else coding
+        self.action = None
 
     def __str__(self):
         return str(self.name)
@@ -63,7 +63,7 @@ class Node:
     def buffpacket(self, batch=0, coding=None, preveotx=0, prevdeotx=0, special=False):  # , ts=0):
         """Buffer incoming packets so they will be received at end of time slot."""
         self.incbuffer.append((batch, coding.copy(), preveotx, prevdeotx, special))
-        # self.history.append((batch, coding.copy(), preveotx, prevdeotx, special, ts))
+        self.action = 'receive'
 
     def becomesource(self):
         """Act like source. Will be triggered if all neighbors are complete."""
@@ -74,12 +74,17 @@ class Node:
         """Set nodes state to fail."""
         self.working = False
 
+    def getaction(self):
+        """Return current active action."""
+        return self.action
+
     def getbatch(self):
         """Return current batch."""
         return self.batch
 
     def getcoded(self):
         """Return a (re)coded packet."""
+        self.action = 'send'
         if self.name == 'D':  # Make sure destination will never send a packet
             return None
         elif self.name == 'S' or self.creditcounter > 0:
@@ -184,6 +189,10 @@ class Node:
     def reducecredit(self):
         """Reduce tx credit."""
         self.creditcounter -= 1
+
+    def resetaction(self):
+        """Reset action at end of each timeslot."""
+        self.action = None
 
     def resetcredit(self):
         """Reset credit."""

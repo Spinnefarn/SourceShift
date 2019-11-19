@@ -73,14 +73,14 @@ class Simulator:
         for neighbor in list(self.graph.neighbors(str(node))):
             if self.graph.edges[str(node), neighbor]['weight'] > random.random():  # roll dice
                 if self.graph.edges[str(node), neighbor]['weight'] == 0:
-                    logging.error('Received using dead link!')
+                    logging.error('Received using dead link!')      # Debug - Should never happen
                 if neighbor != 'S':  # Source will not receive a packet, but still written down
                     for name in self.nodes:  # Add received Packet to buffer with coding
-                        if str(name) == neighbor:
-                            if name.gethealth():  # Broken nodes should not receive
+                        if str(name) == neighbor:       # Nodes which sent are not allowed to receive this time slot
+                            if name.gethealth() and name.getaction() != 'send':  # Broken nodes should not receive
                                 special = self.checkspecial(node, neighbor) if self.own else False
                                 name.buffpacket(batch=node.getbatch(), coding=packet, preveotx=node.geteotx(),
-                                                prevdeotx=node.getdeotx(), special=special, ts=self.timestamp)
+                                                prevdeotx=node.getdeotx(), special=special)
                                 ident = self.getidentifier()
                                 if str(node) + neighbor not in self.path[ident]:
                                     self.path[ident][(str(node) + neighbor)] = 1
@@ -725,15 +725,16 @@ class Simulator:
     def update(self):
         """Update one timestep."""
         if not self.done:
-            if self.sourceshift or self.nomore:
+            [node.resetaction() for node in self.nodes]         # Reset nodes action
+            if self.sourceshift or self.nomore:                 # For protocols where nodes behavior depends on a state
                 self.checkstate()
             if self.anchor:
                 self.checkanchor()
-            if self.sendam:
+            if self.sendam:                                     # Allow nodes to send
                 self.sendsel()
             else:
                 self.sendall()
-            for node in self.nodes:
+            for node in self.nodes:                             # Nodes put received packets in buffer process them now
                 node.rcvpacket()
                 if str(node) == 'D':
                     self.done = node.isdone()
@@ -742,7 +743,7 @@ class Simulator:
                     self.donedict[str(node)] = self.timestamp
                 self.ranklist[str(node)].append(node.getrank())  # Just for debugging
             self.timestamp += 1
-            if not self.checkduration():
+            if not self.checkduration():                        # Stop if reach timeout
                 return True
             return self.done
         else:

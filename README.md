@@ -35,7 +35,7 @@ This project contains a network graph simulator based on networkx. It is able to
    - sa/sendamount - Specify the amount of nodes allowed to send per time slot
  
 **multi.py**
-- Accepts same parameters as main.py
+- Config script to run automated simulations
 - Plots within a dedicated subprocess if wished
 - Creates main.log for most important events
 - Creates folder, with current date as default name, subfolders for each graph, subsubfolders for each simulation
