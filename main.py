@@ -2,7 +2,6 @@
 # coding=utf-8
 """Main script, this will supervise the simulation."""
 import argparse
-import time
 import os
 from Simulator import Simulator
 import random

@@ -46,7 +46,7 @@ class Simulator:
         self.prevfail = None
         self.failhist = {}
         self.interesting = []
-        self.nodes = []
+        self.nodes = {}
         self.ranklist = {}
         self.z = {}
         self.batch = 0
@@ -73,20 +73,18 @@ class Simulator:
         for neighbor in list(self.graph.neighbors(str(node))):
             if self.graph.edges[str(node), neighbor]['weight'] > random.random():  # roll dice
                 if self.graph.edges[str(node), neighbor]['weight'] == 0:
-                    logging.error('Received using dead link!')      # Debug - Should never happen
+                    logging.error('Received using dead link!')  # Debug - Should never happen
                 if neighbor != 'S':  # Source will not receive a packet, but still written down
-                    for name in self.nodes:  # Add received Packet to buffer with coding
-                        if str(name) == neighbor:       # Nodes which sent are not allowed to receive this time slot
-                            if name.gethealth() and name.getaction() != 'send':  # Broken nodes should not receive
-                                special = self.checkspecial(node, neighbor) if self.own else False
-                                name.buffpacket(batch=node.getbatch(), coding=packet, preveotx=node.geteotx(),
-                                                prevdeotx=node.getdeotx(), special=special)
-                                ident = self.getidentifier()
-                                if str(node) + neighbor not in self.path[ident]:
-                                    self.path[ident][(str(node) + neighbor)] = 1
-                                else:
-                                    self.path[ident][(str(node) + neighbor)] += 1
-                            break
+                    if self.nodes[neighbor].gethealth() and self.nodes[neighbor].getaction() != 'send':
+                        special = self.checkspecial(node, neighbor) if self.own else False
+                        self.nodes[neighbor].buffpacket(batch=node.getbatch(), coding=packet, preveotx=node.geteotx(),
+                                                        prevdeotx=node.getdeotx(), special=special)
+                        ident = self.getidentifier()
+                        if str(node) + neighbor not in self.path[ident]:
+                            self.path[ident][(str(node) + neighbor)] = 1
+                        else:
+                            self.path[ident][(str(node) + neighbor)] += 1
+                    break
 
     def calcairtime(self):
         """Calculate the amount of used airtime in total."""
@@ -145,7 +143,7 @@ class Simulator:
     def calcdeotx(self):
         """Calculate second layer of more like david would do."""
         x = {}
-        for node in self.nodes:
+        for node in self.nodes.values():
             if str(node) == 'D':
                 continue
             for neighbor in self.graph.neighbors(str(node)):
@@ -156,11 +154,11 @@ class Simulator:
         bestlinks = [(edge[0], edge[1], self.graph.edges[edge[0], edge[1]]['weight']) for edge in bestlinks]
         self.graph.remove_edges_from(bestlinks)
         eotx = self.geteotx()
-        for node in self.nodes:
+        for node in self.nodes.values():
             node.setdeotx(eotx[str(node)])
             self.graph.nodes[str(node)]['DEOTX'] = eotx[str(node)]
         credit = self.calc_tx_credit(david=True)
-        for node in self.nodes:
+        for node in self.nodes.values():
             try:
                 node.setcredit(credit[str(node)])
             except KeyError:
@@ -343,31 +341,25 @@ class Simulator:
         """Return True if node should be able to send over special metric."""
         for invnei in self.graph.neighbors(neighbor):  # Don't think your source is a different way
             if self.graph.nodes[neighbor]['EOTX'] > self.graph.nodes[invnei]['EOTX'] and invnei != str(node):
-                for invnode in self.nodes:
-                    if str(invnode) == invnei:
-                        if node.getbatch() >= invnode.getbatch() or not invnode.isdone():
-                            return True
-                        break
+                if node.getbatch() >= self.nodes[invnei].getbatch() or not self.nodes[invnei].isdone():
+                    return True
         return False
 
     def checkstate(self):
         """Node should stop sending if all neighbors have complete information."""
-        for node in self.nodes:
+        for node in self.nodes.values():
             if node.getquiet():  # Do not check nodes twice
                 continue
             allcomplete = node.isdone()  # Just check if node itself is done
             for neighbor in self.graph.neighbors(str(node)):
                 if not allcomplete:
                     break
-                for neighbornode in self.nodes:
-                    if str(neighbornode) == neighbor:
-                        allcomplete = (node.getbatch() == neighbornode.getbatch() and neighbornode.isdone())
-                        # Every neighbor closer to destination has to be done at current batch
-                        break
+                allcomplete = (node.getbatch() == self.nodes[neighbor].getbatch() and self.nodes[neighbor].isdone())
+                # Every neighbor closer to destination has to be done at current batch
             if allcomplete:
                 node.stopsending()
 
-        for node in self.nodes:
+        for node in self.nodes.values():
             if ((self.sourceshift and node.isdone()) or (self.nomore and node.getrank() > 0)) and str(node) != 'S':
                 for neighbor in self.graph.neighbors(str(node)):
                     if self.moreres:
@@ -375,29 +367,23 @@ class Simulator:
                     else:
                         david = False
                     if self.graph.nodes[str(node)]['EOTX'] > self.graph.nodes[neighbor]['EOTX'] or david:
-                        for neighbornode in self.nodes:
-                            if str(neighbornode) == neighbor:
-                                if self.sourceshift:
-                                    if not neighbornode.isdone() or neighbornode.getbatch() < node.getbatch():
-                                        node.becomesource()
-                                if self.nomore:
-                                    if neighbornode.getrank() < node.getrank() \
-                                            or neighbornode.getbatch() < node.getbatch():
-                                        node.becomesource()
-                                break
+                        if self.sourceshift:
+                            if not self.nodes[neighbor].isdone() or self.nodes[neighbor].getbatch() < node.getbatch():
+                                node.becomesource()
+                        if self.nomore:
+                            if self.nodes[neighbor].getrank() < node.getrank() \
+                                    or self.nodes[neighbor].getbatch() < node.getbatch():
+                                node.becomesource()
 
     def checkanchor(self):
         """Implementing feedback for anchor."""
-        for node in self.nodes:
-            if str(node) != 'S':
-                for neighbor in self.graph.neighbors(str(node)):
-                    if self.graph.nodes[str(node)]['Priority'] < self.graph.nodes[neighbor]['Priority']:
-                        for neighbornode in self.nodes:
-                            if neighbor == str(neighbornode):
-                                if neighbornode.getrank() > node.getrank() and \
-                                        neighbornode.getbatch() >= node.getbatch():
-                                    node.rmcredit()
-                                break
+        for nodename, node in self.nodes.items():
+            if str(nodename) != 'S':
+                for neighbor in self.graph.neighbors(nodename):
+                    if self.graph.nodes[nodename]['Priority'] < self.graph.nodes[neighbor]['Priority']:
+                        if self.nodes[neighbor].getrank() > node.getrank() and \
+                                self.nodes[neighbor].getbatch() >= node.getbatch():
+                            node.rmcredit()
 
     def createnetwork(self, config=None, randcof=(10, 0.5)):
         """Create network using networkx library based on configuration given as dict."""
@@ -434,10 +420,7 @@ class Simulator:
             return False
         if self.prevfail is None:
             if len(self.interesting[0]) == 1:
-                for node in self.nodes:
-                    if str(node) == self.interesting[0]:
-                        self.failnode(self.nodes.index(node))
-                        break
+                self.failnode(self.interesting[0])
             elif len(self.interesting[0]) == 2:
                 try:
                     self.failedge(list(self.graph.edges).index((self.interesting[0][0], self.interesting[0][1])))
@@ -459,36 +442,26 @@ class Simulator:
             else:
                 return False
         else:
-            newfail = self.interesting[self.interesting.index(str(self.nodes[self.prevfail])) + 1]
+            newfail = self.interesting[self.interesting.index(self.prevfail) + 1]
             if isinstance(newfail, str) and len(newfail) > 1:
                 try:
                     self.failedge(list(self.graph.edges).index((newfail[0], newfail[1])))
                 except ValueError:
                     self.failedge(list(self.graph.edges).index((newfail[1], newfail[0])))
             else:
-                for node in self.nodes:
-                    if newfail == str(node):
-                        self.failnode(self.nodes.index(node))
-                        break
+                self.failnode(newfail)
         return True
 
-    def failnode(self, nodenum=None, node=None):
+    def failnode(self, node=None):
         """Kill a random node."""
         if self.prevfail is not None:
             if isinstance(self.prevfail, tuple):
                 self.graph.edges[self.prevfail[0]]['weight'] = self.prevfail[1]
             else:
                 self.nodes[self.prevfail].heal()
-        if node is not None:
-            for nodeinst in self.nodes:
-                if str(nodeinst) == node:
-                    nodenum = self.nodes.index(nodeinst)
-                    break
-        if nodenum is None:
-            nodenum = random.randint(0, len(self.nodes) - 1)
-        self.nodes[nodenum].fail()
-        self.prevfail = nodenum
-        logging.info('Node {} disabled'.format(str(self.nodes[nodenum])))
+        self.nodes[node].fail()
+        self.prevfail = node
+        logging.info('Node {} disabled'.format(node))
 
     def failedge(self, edgenum=None, edge=None):
         """Kill a random edge."""
@@ -516,7 +489,7 @@ class Simulator:
         self.interesting = []
         usededges = [element for element in self.path['None']
                      if element[1] + element[0] not in self.path['None'] or element[0] > element[1]]
-        for node in self.nodes:
+        for node in self.nodes.values():
             if str(node) not in 'SD' and node.getsent():
                 self.interesting.append(str(node))
         self.interesting.extend(usededges)
@@ -555,7 +528,7 @@ class Simulator:
         """Get current identifier for airtime dict."""
         identifier = 'None'
         if isinstance(self.prevfail, int):
-            identifier = str(self.nodes[self.prevfail])
+            identifier = self.prevfail
         elif isinstance(self.prevfail, tuple):
             identifier = self.prevfail[0][0] + self.prevfail[0][1]
         return identifier
@@ -583,9 +556,9 @@ class Simulator:
             self.calceotx()
             credit = self.calc_tx_credit()
             logging.info('Created network from JSON successfully!')
-        self.nodes = [components.Node(name=name, coding=self.coding, fieldsize=self.fieldsize, random=self.random)
-                      for name in self.graph.nodes]
-        for node in self.nodes:
+        self.nodes = {name: components.Node(name=name, coding=self.coding, fieldsize=self.fieldsize, random=self.random)
+                      for name in self.graph.nodes}
+        for node in self.nodes.values():
             try:
                 node.seteotx(self.graph.nodes[str(node)]['EOTX'])
                 if not self.nomore:
@@ -595,7 +568,7 @@ class Simulator:
         self.eotxdict['None'] = self.geteotx()
         if self.anchor:
             self.calcanchor()
-            for node in self.nodes:
+            for node in self.nodes.values():
                 try:
                     node.setpriority(self.graph.nodes[str(node)]['Priority'])
                     node.setcredit(self.graph.nodes[str(node)]['codingRate'])
@@ -639,9 +612,8 @@ class Simulator:
                 self.failhist['None'] = (self.timestamp, self.batch - 1)
             else:
                 self.failhist[prevfail] = (self.timestamp, self.batch - 1)
-        for node in self.nodes:
-            if str(node) in 'SD':
-                node.newbatch()
+        self.nodes['S'].newbatch()
+        self.nodes['D'].newbatch()
         if self.allfail:
             if not self.failall():  # Just false if last failure was tested
                 return True  # Return done
@@ -680,7 +652,7 @@ class Simulator:
             logging.error('Failed to recalc EOTX or credit for {}'.format(edgelist))
             logging.error(str(self.graph.nodes))
             logging.error(str(self.graph.edges))
-        for node in self.nodes:
+        for node in self.nodes.values():
             try:
                 if credit:
                     node.resetcredit()
@@ -692,7 +664,7 @@ class Simulator:
 
     def sendall(self):
         """All nodes send at same time."""
-        for node in self.nodes:
+        for node in self.nodes.values():
             if str(node) != 'D' and node.getcredit() > 0. and not node.getquiet() and node.gethealth():
                 if node.getbatch() == self.batch:
                     self.broadcast(node)
@@ -706,7 +678,7 @@ class Simulator:
     def sendsel(self):
         """Just the selected amount of nodes send at one timeslot."""
         goodnodes = [  # goodnodes are nodes which are allowed to send
-            node for node in self.nodes if
+            node for node in self.nodes.values() if
             node.getcredit() > 0. and str(node) != 'D' and not node.getquiet() and node.gethealth() and
             node.getbatch() == self.batch]
         maxsend = self.sendam if len(goodnodes) > self.sendam else len(goodnodes)
@@ -725,16 +697,16 @@ class Simulator:
     def update(self):
         """Update one timestep."""
         if not self.done:
-            [node.resetaction() for node in self.nodes]         # Reset nodes action
-            if self.sourceshift or self.nomore:                 # For protocols where nodes behavior depends on a state
+            [node.resetaction() for node in self.nodes.values()]  # Reset nodes action
+            if self.sourceshift or self.nomore:  # For protocols where nodes behavior depends on a state
                 self.checkstate()
             if self.anchor:
                 self.checkanchor()
-            if self.sendam:                                     # Allow nodes to send
+            if self.sendam:  # Allow nodes to send
                 self.sendsel()
             else:
                 self.sendall()
-            for node in self.nodes:                             # Nodes put received packets in buffer process them now
+            for node in self.nodes.values():  # Nodes put received packets in buffer process them now
                 node.rcvpacket()
                 if str(node) == 'D':
                     self.done = node.isdone()
@@ -743,7 +715,7 @@ class Simulator:
                     self.donedict[str(node)] = self.timestamp
                 self.ranklist[str(node)].append(node.getrank())  # Just for debugging
             self.timestamp += 1
-            if not self.checkduration():                        # Stop if reach timeout
+            if not self.checkduration():  # Stop if reach timeout
                 return True
             return self.done
         else:
@@ -795,7 +767,7 @@ class Simulator:
         if self.moreres:
             with open('{}/AADAVID.DAVID'.format(self.folder), 'w') as file:
                 file.write('DAVID')
-            daveotx = {str(node): node.geteotx() for node in self.nodes}
+            daveotx = {str(node): node.geteotx() for node in self.nodes.values()}
             self.eotxdict['david'] = daveotx
         with open('{}/eotx.json'.format(self.folder), 'w') as file:
             json.dump(self.eotxdict, file)

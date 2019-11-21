@@ -1184,7 +1184,7 @@ if __name__ == '__main__':
     logging.basicConfig(filename='plotlog.log', level=logging.INFO, filemode='w')
     now = datetime.datetime.now()
     # date = str(int(str(now.year) + str(now.month) + str(now.day)))
-    date = '../2019223sa1'
+    date = '20191121'
     folderlist = []
     for i in range(50):
         folderlst = []

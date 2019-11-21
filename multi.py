@@ -62,8 +62,8 @@ def cleanfolder(folder):
 
 def setmode(config, count):
     """Set config mode."""
-    mode = ['oss', 'o', 'no', 'ss', 'moreresss', 'moreres', 'm', 'opt', 'anchor']
-    # mode = ['oss', 'ns', 'moreres', 'm', 'opt', 'anchor']
+    # mode = ['oss', 'o', 'no', 'ss', 'moreresss', 'moreres', 'm', 'opt', 'anchor']
+    mode = ['ss', 'moreres', 'm', 'opt', 'anchor']
     try:
         count = int(count) % len(mode)
     except (TypeError, ValueError):
